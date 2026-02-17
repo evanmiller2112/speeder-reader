@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sitemap</title>
+  <link rel="stylesheet" href="/styles.css">
+
+    <meta property="og:title" content="Sitemap" />
+    <meta name="twitter:title" content="Sitemap" />
+    <meta name="description" content="Index of all pages" />
+    <meta property="og:description" content="Index of all pages" />
+    <meta name="twitter:description" content="Index of all pages" />
+    <meta name="twitter:card" content="summary" />
+  </head>
+<body>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/CONTRIBUTING/">CONTRIBUTING</a>
+    <a href="/FEATURES/">FEATURES</a>
+  </nav>
+  <main>
+    <div id="sitemap-container"><input type="text" id="sitemap-search" placeholder="Search pages..." style="width:100%;padding:8px;margin-bottom:16px;box-sizing:border-box;font-size:16px;" /><div id="sitemap-results"></div></div><script>var pages = [{"url":"/","title":"SpeederReader","description":"<div align=\"center\">","filename":"index"},{"url":"/CONTRIBUTING/","title":"Contributing to SpeederReader","description":"SpeederReader is free, open-source software and welcomes contributions of all kinds — bug fixes, new features, documentation improvements, and design feedback.","filename":"CONTRIBUTING"},{"url":"/FEATURES/","title":"SpeederReader — Features","description":"Rapid Serial Visual Presentation flashes words one at a time at a fixed position on screen. Your eyes stay still, eliminating the back-and-forth saccades that slow traditional reading. Most people can comfortably reach 2–3× their normal pace within a few sessions.","filename":"FEATURES"}];var input = document.getElementById('sitemap-search');var results = document.getElementById('sitemap-results');function buildTree(items) {  var root = { children: {}, pages: [] };  items.forEach(function(p) {    var parts = p.url.replace(/^\/+|\/+$/g, '').split('/').filter(function(s) { return s.length > 0; });    if (parts.length === 0) {      root.pages.push(p);    } else {      var node = root;      for (var i = 0; i < parts.length - 1; i++) {        if (!node.children[parts[i]]) {          node.children[parts[i]] = { children: {}, pages: [], key: parts[i] };        }        node = node.children[parts[i]];      }      node.pages.push(p);    }  });  return root;}function renderTree(node, container) {  var ul = document.createElement('ul');  ul.style.listStyle = 'none';  ul.style.paddingLeft = container === results ? '0' : '20px';  var sortedPages = node.pages.slice().sort(function(a, b) {    return a.title.toLowerCase().localeCompare(b.title.toLowerCase());  });  sortedPages.forEach(function(p) {    var li = document.createElement('li');    li.style.marginBottom = '8px';    li.innerHTML = '<a href="' + p.url + '">' + p.title + '</a>' + (p.description ? '<br/><small>' + p.description + '</small>' : '');    ul.appendChild(li);  });  var keys = Object.keys(node.children).sort(function(a, b) {    var aNode = node.children[a];    var bNode = node.children[b];    var aLabel = aNode.pages.length > 0 ? aNode.pages[0].title : a;    var bLabel = bNode.pages.length > 0 ? bNode.pages[0].title : b;    return aLabel.toLowerCase().localeCompare(bLabel.toLowerCase());  });  keys.forEach(function(k) {    var child = node.children[k];    var li = document.createElement('li');    li.style.marginBottom = '8px';    li.style.marginTop = '12px';    var label = k.charAt(0).toUpperCase() + k.slice(1).replace(/-/g, ' ');    li.innerHTML = '<strong>' + label + '</strong>';    ul.appendChild(li);    renderTree(child, li);  });  container.appendChild(ul);}function renderFlat(items) {  var ul = document.createElement('ul');  ul.style.listStyle = 'none';  ul.style.paddingLeft = '0';  items.sort(function(a, b) {    return a.title.toLowerCase().localeCompare(b.title.toLowerCase());  }).forEach(function(p) {    var li = document.createElement('li');    li.style.marginBottom = '8px';    li.innerHTML = '<a href="' + p.url + '">' + p.title + '</a>' + (p.description ? '<br/><small>' + p.description + '</small>' : '');    ul.appendChild(li);  });  results.appendChild(ul);}function render(filter) {  var q = filter.toLowerCase();  results.innerHTML = '';  if (q) {    var matched = pages.filter(function(p) {      return p.title.toLowerCase().indexOf(q) !== -1 || p.description.toLowerCase().indexOf(q) !== -1 || p.filename.toLowerCase().indexOf(q) !== -1;    });    renderFlat(matched);  } else {    var tree = buildTree(pages);    renderTree(tree, results);  }}input.addEventListener('input', function() { render(this.value); });render('');</script>
+  </main>
+  <footer>
+    <p>Built with Agave</p>
+  
+    <a href="/sitemap/">Sitemap</a>
+  </footer>
+</body>
+</html>

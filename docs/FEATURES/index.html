@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SpeederReader — Features</title>
+  <link rel="stylesheet" href="/styles.css">
+
+    <meta property="og:title" content="SpeederReader — Features" />
+    <meta name="twitter:title" content="SpeederReader — Features" />
+    <meta name="description" content="Rapid Serial Visual Presentation flashes words one at a time at a fixed position on screen. Your eyes stay still, eliminating the back-and-forth saccades that slow traditional reading. Most people can comfortably reach 2–3× their normal pace within a few sessions." />
+    <meta property="og:description" content="Rapid Serial Visual Presentation flashes words one at a time at a fixed position on screen. Your eyes stay still, eliminating the back-and-forth saccades that slow traditional reading. Most people can comfortably reach 2–3× their normal pace within a few sessions." />
+    <meta name="twitter:description" content="Rapid Serial Visual Presentation flashes words one at a time at a fixed position on screen. Your eyes stay still, eliminating the back-and-forth saccades that slow traditional reading. Most people can comfortably reach 2–3× their normal pace within a few sessions." />
+    <meta name="twitter:card" content="summary" />
+  </head>
+<body>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/CONTRIBUTING/">CONTRIBUTING</a>
+    <a href="/FEATURES/">FEATURES</a>
+  </nav>
+  <main>
+    <a href="/" style="display:inline-block;margin-bottom:1em;text-decoration:none;color:currentColor;opacity:0.7;" aria-label="Go back"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg></a>
+<h1 id="speederreader-features">SpeederReader — Features</h1>
+<h2 id="speed-reading-rsvp">Speed Reading (RSVP)</h2>
+<p>Rapid Serial Visual Presentation flashes words one at a time at a fixed position on screen. Your eyes stay still, eliminating the back-and-forth saccades that slow traditional reading. Most people can comfortably reach 2–3× their normal pace within a few sessions.</p>
+<p><strong>Speed range:</strong> 50–750 WPM
+<strong>Default:</strong> 250 WPM
+<strong>Controls:</strong> −25 / +25 WPM buttons, always visible while reading</p>
+<hr />
+<h2 id="optimal-recognition-point-orp">Optimal Recognition Point (ORP)</h2>
+<p>Each word is split at its optimal recognition point — the letter your brain uses as an anchor when reading. For odd-length words this is the exact middle letter; for even-length words it is the left-of-center letter. That letter is highlighted in gold and aligned to the horizontal screen center so your gaze never shifts.</p>
+<hr />
+<h2 id="flow-mode">Flow Mode</h2>
+<p>Natural reading is not metronomic. Flow mode detects punctuation (<code>.</code>, <code>,</code>, <code>!</code>, <code>?</code>, <code>;</code>, <code>:</code>, <code>—</code>) and doubles the display time for those words, giving your brain the natural pause it expects at the end of a clause or sentence. Toggle on/off from the speed controls bar. On by default.</p>
+<hr />
+<h2 id="context-strip">Context Strip</h2>
+<p>A paragraph-level view sits above the RSVP word display, showing the surrounding text with the current word highlighted. This keeps you oriented in the narrative and helps comprehension — you always know where you are in the sentence.</p>
+<hr />
+<h2 id="word-navigation">Word Navigation</h2>
+<p>When paused, left <code>←</code> and right <code>→</code> arrow buttons appear below the context strip so you can step forward or backward one word at a time. Useful for re-reading a confusing phrase or reviewing what you just read.</p>
+<hr />
+<h2 id="dictionary-lookup">Dictionary Lookup</h2>
+<p>Tap <strong>look up word</strong> when paused to look up the current word on Dictionary.com:</p>
+<ul>
+<li><strong>Web:</strong> opens in a new browser tab
+</li>
+<li><strong>iOS / Android:</strong> opens an in-app WebView so you never leave the reader
+</li>
+</ul>
+<hr />
+<h2 id="progress-saving">Progress Saving</h2>
+<p>Your reading position is saved automatically whenever you turn a page, pause, or jump. When you reopen a file, SpeederReader offers to resume from where you left off. Progress is stored locally on-device — no account required.</p>
+<hr />
+<h2 id="page-jumping">Page Jumping</h2>
+<p>Tap the page indicator in the bottom bar to jump to any page. Jumping saves progress and auto-resumes reading.</p>
+<hr />
+<h2 id="project-gutenberg-browser">Project Gutenberg Browser</h2>
+<p>Search and load any of the 70,000+ free books from Project Gutenberg directly inside the app — no file download required. Results show title, author, download count, and available format. Books open in the best available format (EPUB preferred, falling back to plain text).</p>
+<ul>
+<li><strong>Native (iOS / Android):</strong> downloads the file to device cache, then parses on-device
+</li>
+<li><strong>Web:</strong> EPUB/PDF open via a new tab for download, then drag-and-drop into Upload; plain-text-only titles open directly in a new tab
+</li>
+</ul>
+<hr />
+<h2 id="localization-english-spanish">Localization (English &amp; Spanish)</h2>
+<p>The full UI is available in English and Spanish. Language is detected automatically from your device or browser settings on first launch. You can switch languages at any time with the <strong>EN / ES</strong> toggle in the top-right corner of the home screen. Your preference is saved locally and persists across sessions.</p>
+<p>Localized strings cover all screens: home screen controls, progress indicators, reader overlays, modal dialogs, and the finished screen.</p>
+<hr />
+<h2 id="supported-formats">Supported Formats</h2>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PDF</td>
+<td>Parsed via PDF.js (on-device)</td>
+</tr>
+<tr>
+<td>EPUB</td>
+<td>Parsed via JSZip; each chapter = one page</td>
+</tr>
+<tr>
+<td>HTML</td>
+<td>Parsed directly in JS</td>
+</tr>
+<tr>
+<td>Markdown</td>
+<td>Parsed directly in JS</td>
+</tr>
+<tr>
+<td>Plain text</td>
+<td>Parsed directly in JS</td>
+</tr>
+</tbody>
+</table>
+<p>All parsing is 100% on-device. Your files are never uploaded anywhere.</p>
+
+  </main>
+  <footer>
+    <p>Built with Agave</p>
+  
+    <a href="/sitemap/">Sitemap</a>
+  </footer>
+</body>
+</html>

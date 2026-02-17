@@ -1,0 +1,971 @@
+import React, { useRef, useState, useCallback, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  SafeAreaView,
+  ScrollView,
+  TextInput,
+  Platform,
+} from "react-native";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
+import WebView from "react-native-webview";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+
+import Logo from "../components/Logo";
+import {
+  buildWordList,
+  firstIndexOfPage,
+  PARSER_HTML,
+  WordEntry,
+} from "../utils/pdfParser";
+import {
+  detectFileType,
+  FileType,
+  parseTextContent,
+} from "../utils/textParser";
+import {
+  loadProgress,
+  saveProgress,
+  clearProgress,
+  makeFileKey,
+  SavedProgress,
+} from "../utils/progress";
+import {
+  GutenbergBook,
+  GutenbergFormat,
+  bestGutenbergFormat,
+  fetchGutenbergSearch,
+} from "../utils/gutenberg";
+import { t, formatTimeLeft } from "../utils/i18n";
+import { useLanguage } from "../contexts/LanguageContext";
+import type { RootStackParamList } from "../../App";
+
+type Props = NativeStackScreenProps<RootStackParamList, "Home">;
+type ParseState = "idle" | "loading" | "parsing" | "ready" | "error";
+type InputMode = "file" | "url" | "gutenberg";
+
+const SERIF = Platform.select({
+  ios: "Georgia",
+  android: "serif",
+  default: "Georgia",
+});
+const MAX_WPM = 750;
+
+const FORMAT_LABEL_BASE: Record<FileType, string> = {
+  pdf: "PDF",
+  epub: "EPUB",
+  html: "HTML",
+  md: "Markdown",
+  txt: "",
+};
+
+export default function HomeScreen({ navigation }: Props) {
+  const { lang, toggleLang } = useLanguage();
+  const FORMAT_LABEL: Record<FileType, string> = {
+    ...FORMAT_LABEL_BASE,
+    txt: t(lang, "plainText"),
+  };
+
+  const [wpm, setWpm] = useState(250);
+  const [parseState, setParseState] = useState<ParseState>("idle");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileType, setFileType] = useState<FileType>("pdf");
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [words, setWords] = useState<WordEntry[]>([]);
+  const [numPages, setNumPages] = useState(0);
+  const [inputMode, setInputMode] = useState<InputMode>("file");
+  const [pdfUrl, setPdfUrl] = useState("");
+
+  // Progress / starting page state
+  const [fileKey, setFileKey] = useState("");
+  const [savedProgress, setSavedProgress] = useState<SavedProgress | null>(
+    null,
+  );
+  const [startPage, setStartPage] = useState(1);
+  const [startPageText, setStartPageText] = useState("1");
+  // Exact word index to start from (preserved from saved progress until user manually picks a page)
+  const [startWordIndex, setStartWordIndex] = useState(0);
+
+  const [gutenbergQuery, setGutenbergQuery] = useState("");
+  const [gutenbergResults, setGutenbergResults] = useState<GutenbergBook[]>([]);
+  const [gutenbergSearching, setGutenbergSearching] = useState(false);
+
+  // Refs so the focus listener always reads the latest values without re-registering
+  const fileKeyRef = useRef("");
+  const parseStateRef = useRef<ParseState>("idle");
+
+  const webViewRef = useRef<WebView>(null);
+  const webViewReady = useRef(false);
+  const pendingMsg = useRef<object | null>(null);
+
+  const sendToWebView = useCallback((msg: object) => {
+    webViewRef.current?.postMessage(JSON.stringify(msg));
+  }, []);
+
+  const onWebViewMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      try {
+        const msg = JSON.parse(event.nativeEvent.data);
+        switch (msg.type) {
+          case "READY":
+            webViewReady.current = true;
+            if (pendingMsg.current) {
+              sendToWebView(pendingMsg.current);
+              pendingMsg.current = null;
+            }
+            break;
+          case "PROGRESS":
+            setProgress({ current: msg.current, total: msg.total });
+            break;
+          case "DONE": {
+            const parsed = buildWordList(msg.pages as string[]);
+            setWords(parsed);
+            setNumPages(msg.numPages as number);
+            setParseState("ready");
+            break;
+          }
+          case "ERROR":
+            Alert.alert("Error", msg.error ?? "Could not parse file.");
+            setParseState("error");
+            break;
+        }
+      } catch (_) {}
+    },
+    [sendToWebView],
+  );
+
+  const dispatch = useCallback(
+    (msg: object) => {
+      if (webViewReady.current) sendToWebView(msg);
+      else pendingMsg.current = msg;
+    },
+    [sendToWebView],
+  );
+
+  // Keep refs current so the focus listener always has fresh values
+  fileKeyRef.current = fileKey;
+  parseStateRef.current = parseState;
+
+  const applyProgress = useCallback((saved: SavedProgress | null) => {
+    setSavedProgress(saved);
+    const page = saved?.page ?? 1;
+    const wordIdx = saved?.wordIndex ?? 0;
+    setStartPage(page);
+    setStartPageText(String(page));
+    setStartWordIndex(wordIdx);
+  }, []);
+
+  // Load saved progress whenever parsing first finishes
+  useEffect(() => {
+    if (parseState !== "ready" || !fileKey) return;
+    loadProgress(fileKey).then(applyProgress);
+  }, [parseState, fileKey, applyProgress]);
+
+  // Re-load saved progress whenever the screen comes back into focus (e.g. returning from Reader)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      if (!fileKeyRef.current || parseStateRef.current !== "ready") return;
+      loadProgress(fileKeyRef.current).then(applyProgress);
+    });
+    return unsubscribe;
+  }, [navigation, applyProgress]);
+
+  // ── File upload ───────────────────────────────────────────────────────────
+  const pickAndParse = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const name = asset.name;
+      const type = detectFileType(name);
+      const key = makeFileKey(name);
+
+      setFileName(name);
+      setFileType(type);
+      setFileKey(key);
+      setSavedProgress(null);
+      setStartPage(1);
+      setStartPageText("1");
+      setStartWordIndex(0);
+      setParseState("loading");
+      setWords([]);
+      setProgress({ current: 0, total: 0 });
+
+      if (type === "txt" || type === "md" || type === "html") {
+        const raw = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const { words: parsed, numPages: np } = parseTextContent(raw, type);
+        setWords(parsed);
+        setNumPages(np);
+        setParseState("ready");
+      } else {
+        const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const msgType = type === "epub" ? "PARSE_EPUB" : "PARSE_PDF";
+        setParseState("parsing");
+        dispatch({ type: msgType, base64 });
+      }
+    } catch (err) {
+      Alert.alert("Error", "Could not open the file.");
+      setParseState("idle");
+    }
+  }, [dispatch]);
+
+  // ── URL load ──────────────────────────────────────────────────────────────
+  const loadFromUrl = useCallback(async () => {
+    const url = pdfUrl.trim();
+    if (!url) return;
+
+    const name = url.split("/").pop()?.split("?")[0] ?? "document";
+    const type = detectFileType(name);
+    const key = makeFileKey(url);
+
+    setFileName(name);
+    setFileType(type);
+    setFileKey(key);
+    setSavedProgress(null);
+    setStartPage(1);
+    setStartPageText("1");
+    setStartWordIndex(0);
+    setParseState("loading");
+    setWords([]);
+    setProgress({ current: 0, total: 0 });
+
+    try {
+      if (type === "txt" || type === "md" || type === "html") {
+        const cacheUri = FileSystem.cacheDirectory + "sr_download";
+        await FileSystem.downloadAsync(url, cacheUri);
+        const raw = await FileSystem.readAsStringAsync(cacheUri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        const { words: parsed, numPages: np } = parseTextContent(raw, type);
+        setWords(parsed);
+        setNumPages(np);
+        setParseState("ready");
+      } else {
+        const cacheUri = FileSystem.cacheDirectory + "sr_download";
+        const { status } = await FileSystem.downloadAsync(url, cacheUri);
+        if (status !== 200) throw new Error(`HTTP ${status}`);
+        const base64 = await FileSystem.readAsStringAsync(cacheUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const msgType = type === "epub" ? "PARSE_EPUB" : "PARSE_PDF";
+        setParseState("parsing");
+        dispatch({ type: msgType, base64 });
+      }
+    } catch (err) {
+      Alert.alert(
+        "Download failed",
+        err instanceof Error ? err.message : String(err),
+      );
+      setParseState("error");
+    }
+  }, [pdfUrl, dispatch]);
+
+  const searchGutenberg = useCallback(async () => {
+    const q = gutenbergQuery.trim();
+    if (!q) return;
+    setGutenbergSearching(true);
+    setGutenbergResults([]);
+    try {
+      setGutenbergResults(await fetchGutenbergSearch(q));
+    } catch (err) {
+      Alert.alert(
+        "Search failed",
+        "Could not reach Project Gutenberg catalog. Check your connection.",
+      );
+    } finally {
+      setGutenbergSearching(false);
+    }
+  }, [gutenbergQuery]);
+
+  const loadGutenbergBook = useCallback(
+    async (book: GutenbergBook, fmt: GutenbergFormat) => {
+      setFileName(book.title);
+      setFileType(fmt.type);
+      setFileKey(makeFileKey(String(book.id)));
+      setSavedProgress(null);
+      setStartPage(1);
+      setStartPageText("1");
+      setStartWordIndex(0);
+      setParseState("loading");
+      setWords([]);
+      setProgress({ current: 0, total: 0 });
+      try {
+        if (fmt.type === "txt" || fmt.type === "html") {
+          const cacheUri = FileSystem.cacheDirectory + "sr_gutenberg";
+          await FileSystem.downloadAsync(fmt.url, cacheUri);
+          const raw = await FileSystem.readAsStringAsync(cacheUri, {
+            encoding: FileSystem.EncodingType.UTF8,
+          });
+          const { words: parsed, numPages: np } = parseTextContent(
+            raw,
+            fmt.type,
+          );
+          setWords(parsed);
+          setNumPages(np);
+          setParseState("ready");
+        } else {
+          const cacheUri = FileSystem.cacheDirectory + "sr_gutenberg";
+          const { status } = await FileSystem.downloadAsync(fmt.url, cacheUri);
+          if (status !== 200) throw new Error(`HTTP ${status}`);
+          const base64 = await FileSystem.readAsStringAsync(cacheUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          setParseState("parsing");
+          dispatch({ type: "PARSE_EPUB", base64 });
+        }
+      } catch (err) {
+        Alert.alert(
+          "Download failed",
+          err instanceof Error ? err.message : String(err),
+        );
+        setParseState("error");
+      }
+    },
+    [dispatch],
+  );
+
+  const startReading = useCallback(() => {
+    navigation.navigate("Reader", {
+      words,
+      wpm,
+      numPages,
+      startIndex: startWordIndex,
+      fileKey,
+    });
+  }, [navigation, words, wpm, numPages, startWordIndex, fileKey]);
+
+  const adjustWpm = (delta: number) =>
+    setWpm((prev) => Math.min(MAX_WPM, Math.max(50, prev + delta)));
+
+  const adjustStartPage = (delta: number) => {
+    setStartPage((prev) => {
+      const next = Math.min(numPages, Math.max(1, prev + delta));
+      setStartPageText(String(next));
+      setStartWordIndex(firstIndexOfPage(words, next));
+      return next;
+    });
+  };
+
+  const handleStartPageText = (t: string) => {
+    setStartPageText(t);
+    const n = parseInt(t, 10);
+    if (!isNaN(n) && n >= 1 && n <= numPages) {
+      setStartPage(n);
+      setStartWordIndex(firstIndexOfPage(words, n));
+    }
+  };
+
+  const isBusy = parseState === "loading" || parseState === "parsing";
+  const fillPct = ((wpm - 50) / (MAX_WPM - 50)) * 100;
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          <Logo size={56} color="#382110" />
+          <Text style={styles.title}>SpeederReader</Text>
+          <TouchableOpacity onPress={toggleLang} style={styles.langBtn}>
+            <Text style={styles.langBtnText}>
+              {lang === "en" ? "ES" : "EN"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* WPM */}
+        <View style={styles.section}>
+          <Text style={styles.label}>{t(lang, "readingSpeed")}</Text>
+          <View style={styles.wpmRow}>
+            <TouchableOpacity
+              style={styles.wpmBtn}
+              onPress={() => adjustWpm(-25)}
+            >
+              <Text style={styles.wpmBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.wpmValue}>{wpm} wpm</Text>
+            <TouchableOpacity
+              style={styles.wpmBtn}
+              onPress={() => adjustWpm(25)}
+            >
+              <Text style={styles.wpmBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.trackWrap}>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${fillPct}%` as any }]} />
+            </View>
+            <View style={styles.trackLabels}>
+              <Text style={styles.trackLabel}>50</Text>
+              <Text style={styles.trackLabel}>{MAX_WPM}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        {/* Mode toggle */}
+        <View style={styles.modeToggle}>
+          <TouchableOpacity
+            style={[
+              styles.modeBtn,
+              inputMode === "file" && styles.modeBtnActive,
+            ]}
+            onPress={() => {
+              setInputMode("file");
+              if (!isBusy) pickAndParse();
+            }}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                inputMode === "file" && styles.modeBtnActiveText,
+              ]}
+            >
+              {t(lang, "upload")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.modeBtn,
+              inputMode === "url" && styles.modeBtnActive,
+            ]}
+            onPress={() => setInputMode("url")}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                inputMode === "url" && styles.modeBtnActiveText,
+              ]}
+            >
+              {t(lang, "fromUrl")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.modeBtn,
+              inputMode === "gutenberg" && styles.modeBtnActive,
+            ]}
+            onPress={() => setInputMode("gutenberg")}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                inputMode === "gutenberg" && styles.modeBtnActiveText,
+              ]}
+            >
+              {t(lang, "browse")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Supported formats note */}
+        <Text style={styles.formatsNote}>{t(lang, "formatsNote")}</Text>
+
+        {inputMode === "file" && (
+          <TouchableOpacity
+            style={[styles.uploadBtn, isBusy && styles.dimmed]}
+            onPress={pickAndParse}
+            disabled={isBusy}
+          >
+            <Text style={styles.uploadBtnText}>
+              {isBusy
+                ? parseState === "loading"
+                  ? t(lang, "readingFile")
+                  : t(lang, "parsing")
+                : parseState === "ready"
+                  ? t(lang, "chooseAnother")
+                  : t(lang, "chooseFile")}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {inputMode === "url" && (
+          <View style={styles.urlRow}>
+            <TextInput
+              style={styles.urlInput}
+              value={pdfUrl}
+              onChangeText={setPdfUrl}
+              placeholder="https://example.com/book.epub"
+              placeholderTextColor="#B8AFA8"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="go"
+              onSubmitEditing={loadFromUrl}
+              editable={!isBusy}
+            />
+            <TouchableOpacity
+              style={[
+                styles.urlBtn,
+                (isBusy || !pdfUrl.trim()) && styles.dimmed,
+              ]}
+              onPress={loadFromUrl}
+              disabled={isBusy || !pdfUrl.trim()}
+            >
+              <Text style={styles.urlBtnText}>
+                {isBusy ? "…" : t(lang, "load")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {inputMode === "gutenberg" && (
+          <View>
+            <View style={styles.urlRow}>
+              <TextInput
+                style={styles.urlInput}
+                value={gutenbergQuery}
+                onChangeText={setGutenbergQuery}
+                placeholder={t(lang, "searchPlaceholder")}
+                placeholderTextColor="#B8AFA8"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                onSubmitEditing={searchGutenberg}
+                editable={!isBusy && !gutenbergSearching}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.urlBtn,
+                  (isBusy || gutenbergSearching || !gutenbergQuery.trim()) &&
+                    styles.dimmed,
+                ]}
+                onPress={searchGutenberg}
+                disabled={
+                  isBusy || gutenbergSearching || !gutenbergQuery.trim()
+                }
+              >
+                <Text style={styles.urlBtnText}>
+                  {gutenbergSearching ? "…" : t(lang, "search")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {gutenbergSearching && (
+              <View style={styles.progressRow}>
+                <ActivityIndicator color="#C8A951" size="small" />
+                <Text style={styles.progressText}>
+                  {t(lang, "searchingGutenberg")}
+                </Text>
+              </View>
+            )}
+            {gutenbergResults.map((book) => {
+              const fmt = bestGutenbergFormat(book.formats);
+              const authors = book.authors.map((a) => a.name).join(", ");
+              return (
+                <TouchableOpacity
+                  key={book.id}
+                  style={[styles.bookResult, (!fmt || isBusy) && styles.dimmed]}
+                  onPress={() => fmt && loadGutenbergBook(book, fmt)}
+                  disabled={!fmt || isBusy}
+                >
+                  <Text style={styles.bookTitle} numberOfLines={2}>
+                    {book.title}
+                  </Text>
+                  <Text style={styles.bookAuthor} numberOfLines={1}>
+                    {authors}
+                  </Text>
+                  <Text style={styles.bookMeta}>
+                    {book.download_count.toLocaleString()}{" "}
+                    {t(lang, "downloads")} ·{" "}
+                    {fmt ? fmt.type.toUpperCase() : t(lang, "unavailable")}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {isBusy && (
+          <View style={styles.progressRow}>
+            <ActivityIndicator color="#C8A951" size="small" />
+            <Text style={styles.progressText}>
+              {parseState === "loading"
+                ? t(lang, "fetching")
+                : `${FORMAT_LABEL[fileType]} · ${
+                    progress.total
+                      ? t(lang, "pageOf", {
+                          current: progress.current,
+                          total: progress.total,
+                        })
+                      : t(lang, "pageNum", { current: progress.current })
+                  }`}
+            </Text>
+          </View>
+        )}
+
+        {parseState === "ready" && fileName && (
+          <View style={styles.fileInfo}>
+            <Text style={styles.fileInfoName} numberOfLines={1}>
+              ✓ {fileName}
+            </Text>
+            <Text style={styles.fileInfoMeta}>
+              {FORMAT_LABEL[fileType]} · {numPages}{" "}
+              {numPages === 1 ? t(lang, "page") : t(lang, "pages")} ·{" "}
+              {words.length.toLocaleString()} {t(lang, "words")}
+            </Text>
+            <Text style={styles.fileInfoTime}>
+              {formatTimeLeft(lang, words.length - startWordIndex, wpm)}
+            </Text>
+          </View>
+        )}
+
+        {parseState === "ready" && (
+          <>
+            {/* Saved progress banner */}
+            {savedProgress && (
+              <View style={styles.savedBanner}>
+                <Text style={styles.savedText}>
+                  {t(lang, "savedProgress", { page: savedProgress.page })}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    clearProgress(fileKey);
+                    setSavedProgress(null);
+                    setStartPage(1);
+                    setStartPageText("1");
+                  }}
+                >
+                  <Text style={styles.savedClear}>{t(lang, "clear")}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Start page picker */}
+            <View style={styles.startPageRow}>
+              <Text style={styles.startPageLabel}>
+                {t(lang, "startFromPage")}
+              </Text>
+              <View style={styles.startPageControls}>
+                <TouchableOpacity
+                  style={styles.startPageBtn}
+                  onPress={() => adjustStartPage(-1)}
+                >
+                  <Text style={styles.startPageBtnText}>−</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={styles.startPageInput}
+                  value={startPageText}
+                  onChangeText={handleStartPageText}
+                  keyboardType="number-pad"
+                  selectTextOnFocus
+                />
+                <TouchableOpacity
+                  style={styles.startPageBtn}
+                  onPress={() => adjustStartPage(1)}
+                >
+                  <Text style={styles.startPageBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity style={styles.startBtn} onPress={startReading}>
+              <Text style={styles.startBtnText}>{t(lang, "startReading")}</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        <TouchableOpacity
+          style={styles.siteLink}
+          onPress={() => Linking.openURL("https://speederreader.org/FEATURES/")}
+        >
+          <Text style={styles.siteLinkText}>feature documentation</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <WebView
+        ref={webViewRef}
+        style={styles.hidden}
+        originWhitelist={["*"]}
+        source={{ html: PARSER_HTML }}
+        onMessage={onWebViewMessage}
+        javaScriptEnabled
+        domStorageEnabled
+        mixedContentMode="always"
+        onError={(e) => console.warn("WebView error", e.nativeEvent)}
+      />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#F4F1EA" },
+  scroll: { paddingHorizontal: 28, paddingVertical: 40 },
+  hidden: { width: 0, height: 0, position: "absolute", opacity: 0 },
+
+  header: { alignItems: "center", marginBottom: 40, gap: 14 },
+  title: {
+    fontSize: 28,
+    fontFamily: SERIF,
+    fontWeight: "700",
+    color: "#382110",
+    letterSpacing: 0.3,
+  },
+  langBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+  },
+  langBtnText: {
+    fontFamily: SERIF,
+    fontSize: 12,
+    color: "#908787",
+    letterSpacing: 1,
+  },
+
+  section: { marginBottom: 8 },
+  label: {
+    fontSize: 11,
+    fontFamily: SERIF,
+    color: "#908787",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    marginBottom: 16,
+  },
+
+  wpmRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  wpmBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  wpmBtnText: { fontSize: 20, color: "#382110", lineHeight: 22 },
+  wpmValue: {
+    fontSize: 26,
+    fontFamily: SERIF,
+    fontWeight: "700",
+    color: "#382110",
+  },
+
+  trackWrap: { marginBottom: 4 },
+  track: {
+    height: 3,
+    backgroundColor: "#E8E2D9",
+    borderRadius: 2,
+    overflow: "hidden",
+    marginBottom: 6,
+  },
+  fill: { height: 3, backgroundColor: "#C8A951", borderRadius: 2 },
+  trackLabels: { flexDirection: "row", justifyContent: "space-between" },
+  trackLabel: { fontSize: 11, color: "#C0B8B0", fontFamily: SERIF },
+
+  divider: { height: 1, backgroundColor: "#E8E2D9", marginVertical: 28 },
+
+  modeToggle: {
+    flexDirection: "row",
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  modeBtn: { flex: 1, paddingVertical: 10, alignItems: "center" },
+  modeBtnActive: { backgroundColor: "#382110" },
+  modeBtnText: { fontFamily: SERIF, fontSize: 14, color: "#908787" },
+  modeBtnActiveText: { color: "#F4F1EA" },
+
+  formatsNote: {
+    fontFamily: SERIF,
+    fontSize: 11,
+    color: "#C0B8B0",
+    textAlign: "center",
+    marginBottom: 18,
+  },
+
+  uploadBtn: {
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    borderRadius: 8,
+    borderStyle: "dashed",
+    paddingVertical: 20,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  dimmed: { opacity: 0.45 },
+  uploadBtnText: { fontFamily: SERIF, fontSize: 16, color: "#382110" },
+
+  urlRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+  urlInput: {
+    flex: 1,
+    backgroundColor: "#FDFAF5",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    fontFamily: SERIF,
+    fontSize: 14,
+    color: "#382110",
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  urlBtn: {
+    backgroundColor: "#382110",
+    borderRadius: 8,
+    paddingHorizontal: 18,
+    justifyContent: "center",
+  },
+  urlBtnText: {
+    color: "#F4F1EA",
+    fontFamily: SERIF,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  progressText: { fontFamily: SERIF, fontSize: 14, color: "#908787" },
+
+  fileInfo: {
+    backgroundColor: "#FDFAF5",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    padding: 14,
+    marginBottom: 16,
+  },
+  fileInfoName: {
+    fontFamily: SERIF,
+    fontSize: 14,
+    color: "#382110",
+    fontWeight: "600",
+  },
+  fileInfoMeta: {
+    fontFamily: SERIF,
+    fontSize: 12,
+    color: "#908787",
+    marginTop: 3,
+  },
+  fileInfoTime: {
+    fontFamily: SERIF,
+    fontSize: 12,
+    color: "#C8A951",
+    marginTop: 4,
+  },
+
+  // Saved progress banner
+  savedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FDF6E3",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E8D8A0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  savedText: { fontFamily: SERIF, fontSize: 13, color: "#6B5B2E" },
+  savedClear: {
+    fontFamily: SERIF,
+    fontSize: 12,
+    color: "#A89040",
+    textDecorationLine: "underline",
+  },
+
+  // Start page picker
+  startPageRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+  },
+  startPageLabel: { fontFamily: SERIF, fontSize: 14, color: "#6B5B4E" },
+  startPageControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+  startPageBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  startPageBtnText: { fontSize: 18, color: "#382110", lineHeight: 20 },
+  startPageInput: {
+    width: 58,
+    backgroundColor: "#FDFAF5",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    fontFamily: SERIF,
+    fontSize: 15,
+    color: "#382110",
+    textAlign: "center",
+    paddingVertical: 5,
+  },
+
+  startBtn: {
+    backgroundColor: "#382110",
+    borderRadius: 8,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  startBtnText: {
+    fontFamily: SERIF,
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#F4F1EA",
+    letterSpacing: 0.3,
+  },
+
+  siteLink: { alignItems: "center", paddingVertical: 24 },
+  siteLinkText: {
+    fontFamily: SERIF,
+    fontSize: 12,
+    color: "#C0B8B0",
+    letterSpacing: 0.5,
+  },
+
+  // Gutenberg browse
+  bookResult: {
+    backgroundColor: "#FDFAF5",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D4C9BC",
+    padding: 14,
+    marginBottom: 10,
+  },
+  bookTitle: {
+    fontFamily: SERIF,
+    fontSize: 15,
+    color: "#382110",
+    fontWeight: "600",
+    marginBottom: 3,
+  },
+  bookAuthor: {
+    fontFamily: SERIF,
+    fontSize: 13,
+    color: "#6B5B4E",
+    marginBottom: 4,
+  },
+  bookMeta: { fontFamily: SERIF, fontSize: 11, color: "#C0B8B0" },
+});
