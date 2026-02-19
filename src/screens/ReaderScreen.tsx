@@ -524,13 +524,13 @@ const styles = StyleSheet.create({
   stepBtnLeft: {
     position: "absolute",
     left: 24,
-    top: "50%",
+    top: "60%",
     transform: [{ translateY: -22 }],
   },
   stepBtnRight: {
     position: "absolute",
     right: 24,
-    top: "50%",
+    top: "60%",
     transform: [{ translateY: -22 }],
   },
   stepRow: {
