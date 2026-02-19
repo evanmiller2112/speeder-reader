@@ -13,9 +13,9 @@
 
 # SpeederReader
 
-### *Read more books.*
+### _Read more books._
 
-[![Open Web App](https://img.shields.io/badge/Open_Web_App-▶_Start_Reading-C8A951?style=for-the-badge)](https://inventive-package-qus5z.ampt.app/)
+[![Open Web App](https://img.shields.io/badge/Open_Web_App-▶_Start_Reading-C8A951?style=for-the-badge)](https://app.speederreader.org/)
 
 </div>
 
@@ -23,7 +23,7 @@
 
 ## Our Mission
 
-Too many books go unread. Not for lack of desire — most people *want* to read more — but because time is short and the habit is hard to build.
+Too many books go unread. Not for lack of desire — most people _want_ to read more — but because time is short and the habit is hard to build.
 
 SpeederReader exists to change that.
 
@@ -55,17 +55,17 @@ We believe tools that increase human literacy and knowledge should be accessible
 
 ## Features
 
-| | |
-|---|---|
-| **RSVP reading** | One word at a time, optimally positioned for instant recognition |
-| **Flow mode** | Slows automatically at punctuation to mirror natural reading rhythm |
-| **ORP highlighting** | Gold highlight locks your eye to the exact right letter in each word |
-| **Context strip** | Paragraph view keeps you oriented in the text |
-| **Word navigation** | Step forward and backward when paused |
-| **Dictionary lookup** | Look up any word instantly without leaving the app |
-| **Progress saving** | Your place is saved automatically |
-| **All major formats** | PDF, EPUB, HTML, Markdown, plain text |
-| **Fully offline** | No server, no cloud, no tracking |
+|                       |                                                                      |
+| --------------------- | -------------------------------------------------------------------- |
+| **RSVP reading**      | One word at a time, optimally positioned for instant recognition     |
+| **Flow mode**         | Slows automatically at punctuation to mirror natural reading rhythm  |
+| **ORP highlighting**  | Gold highlight locks your eye to the exact right letter in each word |
+| **Context strip**     | Paragraph view keeps you oriented in the text                        |
+| **Word navigation**   | Step forward and backward when paused                                |
+| **Dictionary lookup** | Look up any word instantly without leaving the app                   |
+| **Progress saving**   | Your place is saved automatically                                    |
+| **All major formats** | PDF, EPUB, HTML, Markdown, plain text                                |
+| **Fully offline**     | No server, no cloud, no tracking                                     |
 
 ---
 
@@ -73,14 +73,14 @@ We believe tools that increase human literacy and knowledge should be accessible
 
 <div align="center">
 
-[![Web App](https://img.shields.io/badge/Open_Web_App-inventive--package--qus5z.ampt.app-C8A951?style=for-the-badge)](https://inventive-package-qus5z.ampt.app/)
+[![Web App](https://img.shields.io/badge/Open_Web_App-app.speederreader.org-C8A951?style=for-the-badge)](https://app.speederreader.org/)
 
-[![App Store](https://img.shields.io/badge/App_Store-Coming_Soon-000000?style=for-the-badge&logo=apple&logoColor=white)](https://inventive-package-qus5z.ampt.app/)
+[![App Store](https://img.shields.io/badge/App_Store-Coming_Soon-000000?style=for-the-badge&logo=apple&logoColor=white)](https://app.speederreader.org/)
 &nbsp;
-[![Google Play](https://img.shields.io/badge/Google_Play-Coming_Soon-000000?style=for-the-badge&logo=google-play&logoColor=white)](https://inventive-package-qus5z.ampt.app/)
+[![Google Play](https://img.shields.io/badge/Google_Play-Coming_Soon-000000?style=for-the-badge&logo=google-play&logoColor=white)](https://app.speederreader.org/)
 
 </div>
 
 ---
 
-*SpeederReader is open source. View the source, contribute, or build your own at [github.com](https://github.com).*
+_SpeederReader is open source. View the source, contribute, or build your own at [github.com](https://github.com)._

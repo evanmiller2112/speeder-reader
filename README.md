@@ -1,26 +1,26 @@
 # SpeederReader
 
-### *Read more books.*
+### _Read more books._
 
 Read them faster, understand them better, and never lose your place.
 
 SpeederReader is a free, open-source speed reading app built on the RSVP (Rapid Serial Visual Presentation) technique — one word at a time, right at the optimal recognition point, so your eyes never move and your reading speed skyrockets.
 
-[![Web App](https://img.shields.io/badge/Open_Web_App-▶_Start_Reading-C8A951?style=for-the-badge&logoColor=white)](https://inventive-package-qus5z.ampt.app/)
+[![Web App](https://img.shields.io/badge/Open_Web_App-▶_Start_Reading-C8A951?style=for-the-badge&logoColor=white)](https://app.speederreader.org/)
 
 ---
 
 ## Download
 
-<a href="https://inventive-package-qus5z.ampt.app/">
+<a href="https://app.speederreader.org/">
   <img src="https://img.shields.io/badge/App_Store-Coming_Soon-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download on the App Store" height="48"/>
 </a>
 &nbsp;&nbsp;
-<a href="https://inventive-package-qus5z.ampt.app/">
+<a href="https://app.speederreader.org/">
   <img src="https://img.shields.io/badge/Google_Play-Coming_Soon-000000?style=for-the-badge&logo=google-play&logoColor=white" alt="Get it on Google Play" height="48"/>
 </a>
 
-*iOS and Android apps coming soon. In the meantime, the full app is available at [inventive-package-qus5z.ampt.app](https://inventive-package-qus5z.ampt.app/).*
+_iOS and Android apps coming soon. In the meantime, the full app is available at [https://app.speederreader.org/](https://app.speederreader.org//)._
 
 ---
 
@@ -31,6 +31,7 @@ Most people want to read more — more books, more long-form writing, more of th
 By training your brain to read at 2–3× your natural pace, a 300-page book that once took two weeks can be finished in a weekend. We believe reading deeply and reading quickly are not opposites — and that everyone deserves access to tools that help them do both.
 
 **SpeederReader is and always will be:**
+
 - **Free** — no subscription, no paywall, no ads
 - **Open source** — MIT licensed, built in the open
 - **Private** — your books never leave your device
@@ -60,7 +61,7 @@ By training your brain to read at 2–3× your natural pace, a 300-page book tha
 
 ### Use the web app
 
-No install needed → [inventive-package-qus5z.ampt.app](https://inventive-package-qus5z.ampt.app/)
+No install needed → [https://app.speederreader.org/](https://app.speederreader.org/)
 
 ### Run locally
 
@@ -106,4 +107,4 @@ MIT — free to use, modify, and distribute. See [LICENSE](LICENSE).
 
 ---
 
-*Read more books.*
+_Read more books._
