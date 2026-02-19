@@ -3,7 +3,13 @@
  * PDF/EPUB parsed in a hidden <iframe> via PARSER_HTML (PDF.js + JSZip on CDN).
  * TXT/MD/HTML parsed directly in JS (no network dependency).
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -346,6 +352,10 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
