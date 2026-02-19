@@ -398,7 +398,9 @@ export default function HomeScreen({ navigation }: Props) {
             >
               <Text style={styles.wpmBtnText}>−</Text>
             </TouchableOpacity>
-            <Text style={styles.wpmValue}>{wpm} wpm</Text>
+            <Text style={styles.wpmValue}>
+              {wpm} {t(lang, "wpm")}
+            </Text>
             <TouchableOpacity
               style={styles.wpmBtn}
               onPress={() => adjustWpm(25)}
@@ -683,7 +685,9 @@ export default function HomeScreen({ navigation }: Props) {
           style={styles.siteLink}
           onPress={() => Linking.openURL("https://speederreader.org/FEATURES/")}
         >
-          <Text style={styles.siteLinkText}>feature documentation</Text>
+          <Text style={styles.siteLinkText}>
+            {t(lang, "featureDocumentation")}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
 
