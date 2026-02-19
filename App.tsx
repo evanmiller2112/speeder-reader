@@ -9,6 +9,7 @@ import HomeScreen from './src/screens/HomeScreen';
 import ReaderScreen from './src/screens/ReaderScreen';
 import { WordEntry } from './src/utils/pdfParser';
 import { LanguageProvider } from './src/contexts/LanguageContext';
+import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -23,16 +24,17 @@ export type RootStackParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-export default function App() {
+function AppContent() {
+  const { scheme } = useTheme();
+  const isDark = scheme === 'dark';
   return (
-    <LanguageProvider>
-    <GestureHandlerRootView style={styles.root}>
-      <StatusBar style="light" />
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <NavigationContainer>
         <Stack.Navigator
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: '#F4F1EA' },
+            contentStyle: { backgroundColor: isDark ? '#18100A' : '#F4F1EA' },
             animation: 'slide_from_right',
           }}
         >
@@ -40,7 +42,18 @@ export default function App() {
           <Stack.Screen name="Reader" component={ReaderScreen} />
         </Stack.Navigator>
       </NavigationContainer>
-    </GestureHandlerRootView>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <ThemeProvider>
+        <GestureHandlerRootView style={styles.root}>
+          <AppContent />
+        </GestureHandlerRootView>
+      </ThemeProvider>
     </LanguageProvider>
   );
 }

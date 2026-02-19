@@ -3,7 +3,7 @@
  * PDF/EPUB parsed in a hidden <iframe> via PARSER_HTML (PDF.js + JSZip on CDN).
  * TXT/MD/HTML parsed directly in JS (no network dependency).
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Linking,
@@ -43,6 +43,8 @@ import {
 } from "../utils/gutenberg";
 import { t, formatTimeLeft } from "../utils/i18n";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useTheme } from "../contexts/ThemeContext";
+import { getTheme, ThemeColors } from "../utils/theme";
 import type { RootStackParamList } from "../../App";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
@@ -84,6 +86,10 @@ function readFileAsText(file: File): Promise<string> {
 
 export default function HomeScreen({ navigation }: Props) {
   const { lang, toggleLang } = useLanguage();
+  const { scheme, toggleTheme } = useTheme();
+  const c = getTheme(scheme);
+  const styles = useMemo(() => makeStyles(c), [scheme]);
+
   const FORMAT_LABEL: Record<FileType, string> = {
     ...FORMAT_LABEL_BASE,
     txt: t(lang, "plainText"),
@@ -404,13 +410,20 @@ export default function HomeScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Logo size={56} color="#382110" />
+          <Logo size={56} color={c.textPrimary} />
           <Text style={styles.title}>SpeederReader</Text>
-          <TouchableOpacity onPress={toggleLang} style={styles.langBtn}>
-            <Text style={styles.langBtnText}>
-              {lang === "en" ? "ES" : "EN"}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.headerBtns}>
+            <TouchableOpacity onPress={toggleLang} style={styles.headerBtn}>
+              <Text style={styles.headerBtnText}>
+                {lang === "en" ? "ES" : "EN"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={toggleTheme} style={styles.headerBtn}>
+              <Text style={styles.headerBtnText}>
+                {scheme === "dark" ? "☀" : "☾"}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* WPM */}
@@ -528,7 +541,7 @@ export default function HomeScreen({ navigation }: Props) {
               value={pdfUrl}
               onChangeText={setPdfUrl}
               placeholder="https://example.com/book.epub"
-              placeholderTextColor="#B8AFA8"
+              placeholderTextColor={c.placeholder}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="go"
@@ -558,7 +571,7 @@ export default function HomeScreen({ navigation }: Props) {
                 value={gutenbergQuery}
                 onChangeText={setGutenbergQuery}
                 placeholder={t(lang, "searchPlaceholder")}
-                placeholderTextColor="#B8AFA8"
+                placeholderTextColor={c.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
@@ -583,7 +596,7 @@ export default function HomeScreen({ navigation }: Props) {
             </View>
             {gutenbergSearching && (
               <View style={styles.progressRow}>
-                <ActivityIndicator color="#C8A951" size="small" />
+                <ActivityIndicator color={c.accent} size="small" />
                 <Text style={styles.progressText}>
                   {t(lang, "searchingGutenberg")}
                 </Text>
@@ -618,7 +631,7 @@ export default function HomeScreen({ navigation }: Props) {
 
         {isBusy && (
           <View style={styles.progressRow}>
-            <ActivityIndicator color="#C8A951" size="small" />
+            <ActivityIndicator color={c.accent} size="small" />
             <Text style={styles.progressText}>
               {parseState === "loading"
                 ? t(lang, "fetching")
@@ -718,275 +731,279 @@ export default function HomeScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F4F1EA" },
-  scroll: {
-    paddingHorizontal: 28,
-    paddingVertical: 40,
-    maxWidth: 520,
-    alignSelf: "center" as any,
-    width: "100%",
-  },
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    scroll: {
+      paddingHorizontal: 28,
+      paddingVertical: 40,
+      maxWidth: 520,
+      alignSelf: "center" as any,
+      width: "100%",
+    },
 
-  header: { alignItems: "center", marginBottom: 40, gap: 14 },
-  title: {
-    fontSize: 28,
-    fontFamily: SERIF,
-    fontWeight: "700",
-    color: "#382110",
-    letterSpacing: 0.3,
-  },
-  langBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-  },
-  langBtnText: {
-    fontFamily: SERIF,
-    fontSize: 12,
-    color: "#908787",
-    letterSpacing: 1,
-  },
+    header: { alignItems: "center", marginBottom: 40, gap: 14 },
+    title: {
+      fontSize: 28,
+      fontFamily: SERIF,
+      fontWeight: "700",
+      color: c.textPrimary,
+      letterSpacing: 0.3,
+    },
+    headerBtns: { flexDirection: "row", gap: 8 },
+    headerBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 5,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+    },
+    headerBtnText: {
+      fontFamily: SERIF,
+      fontSize: 12,
+      color: c.textSecondary,
+      letterSpacing: 1,
+    },
 
-  section: { marginBottom: 8 },
-  label: {
-    fontSize: 11,
-    fontFamily: SERIF,
-    color: "#908787",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    marginBottom: 16,
-  },
+    section: { marginBottom: 8 },
+    label: {
+      fontSize: 11,
+      fontFamily: SERIF,
+      color: c.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 1.2,
+      marginBottom: 16,
+    },
 
-  wpmRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  wpmBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  wpmBtnText: { fontSize: 20, color: "#382110", lineHeight: 22 },
-  wpmValue: {
-    fontSize: 26,
-    fontFamily: SERIF,
-    fontWeight: "700",
-    color: "#382110",
-  },
+    wpmRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 16,
+    },
+    wpmBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    wpmBtnText: { fontSize: 20, color: c.textPrimary, lineHeight: 22 },
+    wpmValue: {
+      fontSize: 26,
+      fontFamily: SERIF,
+      fontWeight: "700",
+      color: c.textPrimary,
+    },
 
-  trackWrap: { marginBottom: 4 },
-  track: {
-    height: 3,
-    backgroundColor: "#E8E2D9",
-    borderRadius: 2,
-    overflow: "hidden",
-    marginBottom: 6,
-  },
-  fill: { height: 3, backgroundColor: "#C8A951", borderRadius: 2 },
-  trackLabels: { flexDirection: "row", justifyContent: "space-between" },
-  trackLabel: { fontSize: 11, color: "#C0B8B0", fontFamily: SERIF },
+    trackWrap: { marginBottom: 4 },
+    track: {
+      height: 3,
+      backgroundColor: c.divider,
+      borderRadius: 2,
+      overflow: "hidden",
+      marginBottom: 6,
+    },
+    fill: { height: 3, backgroundColor: c.accent, borderRadius: 2 },
+    trackLabels: { flexDirection: "row", justifyContent: "space-between" },
+    trackLabel: { fontSize: 11, color: c.textTertiary, fontFamily: SERIF },
 
-  divider: { height: 1, backgroundColor: "#E8E2D9", marginVertical: 28 },
+    divider: { height: 1, backgroundColor: c.divider, marginVertical: 28 },
 
-  modeToggle: {
-    flexDirection: "row",
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  modeBtn: { flex: 1, paddingVertical: 10, alignItems: "center" },
-  modeBtnActive: { backgroundColor: "#382110" },
-  modeBtnText: { fontFamily: SERIF, fontSize: 14, color: "#908787" },
-  modeBtnActiveText: { color: "#F4F1EA" },
+    modeToggle: {
+      flexDirection: "row",
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 8,
+      overflow: "hidden",
+    },
+    modeBtn: { flex: 1, paddingVertical: 10, alignItems: "center" },
+    modeBtnActive: { backgroundColor: c.activeTabBg },
+    modeBtnText: { fontFamily: SERIF, fontSize: 14, color: c.textSecondary },
+    modeBtnActiveText: { color: c.activeTabText },
 
-  formatsNote: {
-    fontFamily: SERIF,
-    fontSize: 11,
-    color: "#C0B8B0",
-    textAlign: "center",
-    marginBottom: 18,
-  },
+    formatsNote: {
+      fontFamily: SERIF,
+      fontSize: 11,
+      color: c.textTertiary,
+      textAlign: "center",
+      marginBottom: 18,
+    },
 
-  uploadBtn: {
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    borderRadius: 8,
-    borderStyle: "dashed",
-    paddingVertical: 20,
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  dimmed: { opacity: 0.45 },
-  uploadBtnText: { fontFamily: SERIF, fontSize: 16, color: "#382110" },
+    uploadBtn: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 8,
+      borderStyle: "dashed",
+      paddingVertical: 20,
+      alignItems: "center",
+      marginBottom: 16,
+    },
+    dimmed: { opacity: 0.45 },
+    uploadBtnText: { fontFamily: SERIF, fontSize: 16, color: c.textPrimary },
 
-  urlRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
-  urlInput: {
-    flex: 1,
-    backgroundColor: "#FDFAF5",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    fontFamily: SERIF,
-    fontSize: 14,
-    color: "#382110",
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-  },
-  urlBtn: {
-    backgroundColor: "#382110",
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    justifyContent: "center",
-  },
-  urlBtnText: {
-    color: "#F4F1EA",
-    fontFamily: SERIF,
-    fontSize: 15,
-    fontWeight: "600",
-  },
+    urlRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
+    urlInput: {
+      flex: 1,
+      backgroundColor: c.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      fontFamily: SERIF,
+      fontSize: 14,
+      color: c.textPrimary,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+    },
+    urlBtn: {
+      backgroundColor: c.primaryBtn,
+      borderRadius: 8,
+      paddingHorizontal: 18,
+      justifyContent: "center",
+    },
+    urlBtnText: {
+      color: c.primaryBtnText,
+      fontFamily: SERIF,
+      fontSize: 15,
+      fontWeight: "600",
+    },
 
-  progressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 14,
-  },
-  progressText: { fontFamily: SERIF, fontSize: 14, color: "#908787" },
+    progressRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginBottom: 14,
+    },
+    progressText: { fontFamily: SERIF, fontSize: 14, color: c.textSecondary },
 
-  fileInfo: {
-    backgroundColor: "#FDFAF5",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    padding: 14,
-    marginBottom: 16,
-  },
-  fileInfoName: {
-    fontFamily: SERIF,
-    fontSize: 14,
-    color: "#382110",
-    fontWeight: "600",
-  },
-  fileInfoMeta: {
-    fontFamily: SERIF,
-    fontSize: 12,
-    color: "#908787",
-    marginTop: 3,
-  },
-  fileInfoTime: {
-    fontFamily: SERIF,
-    fontSize: 12,
-    color: "#C8A951",
-    marginTop: 4,
-  },
+    fileInfo: {
+      backgroundColor: c.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      marginBottom: 16,
+    },
+    fileInfoName: {
+      fontFamily: SERIF,
+      fontSize: 14,
+      color: c.textPrimary,
+      fontWeight: "600",
+    },
+    fileInfoMeta: {
+      fontFamily: SERIF,
+      fontSize: 12,
+      color: c.textSecondary,
+      marginTop: 3,
+    },
+    fileInfoTime: {
+      fontFamily: SERIF,
+      fontSize: 12,
+      color: c.accent,
+      marginTop: 4,
+    },
 
-  // Saved progress banner
-  savedBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#FDF6E3",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E8D8A0",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 14,
-  },
-  savedText: { fontFamily: SERIF, fontSize: 13, color: "#6B5B2E" },
-  savedClear: {
-    fontFamily: SERIF,
-    fontSize: 12,
-    color: "#A89040",
-    textDecorationLine: "underline",
-  },
+    savedBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: c.savedBg,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.savedBorder,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 14,
+    },
+    savedText: { fontFamily: SERIF, fontSize: 13, color: c.savedText },
+    savedClear: {
+      fontFamily: SERIF,
+      fontSize: 12,
+      color: c.savedClear,
+      textDecorationLine: "underline",
+    },
 
-  // Start page picker
-  startPageRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 18,
-  },
-  startPageLabel: { fontFamily: SERIF, fontSize: 14, color: "#6B5B4E" },
-  startPageControls: { flexDirection: "row", alignItems: "center", gap: 8 },
-  startPageBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  startPageBtnText: { fontSize: 18, color: "#382110", lineHeight: 20 },
-  startPageInput: {
-    width: 58,
-    backgroundColor: "#FDFAF5",
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    fontFamily: SERIF,
-    fontSize: 15,
-    color: "#382110",
-    textAlign: "center",
-    paddingVertical: 5,
-  },
+    startPageRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 18,
+    },
+    startPageLabel: {
+      fontFamily: SERIF,
+      fontSize: 14,
+      color: c.textMuted,
+    },
+    startPageControls: { flexDirection: "row", alignItems: "center", gap: 8 },
+    startPageBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    startPageBtnText: { fontSize: 18, color: c.textPrimary, lineHeight: 20 },
+    startPageInput: {
+      width: 58,
+      backgroundColor: c.card,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: c.border,
+      fontFamily: SERIF,
+      fontSize: 15,
+      color: c.textPrimary,
+      textAlign: "center",
+      paddingVertical: 5,
+    },
 
-  startBtn: {
-    backgroundColor: "#382110",
-    borderRadius: 8,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  startBtnText: {
-    fontFamily: SERIF,
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#F4F1EA",
-    letterSpacing: 0.3,
-  },
+    startBtn: {
+      backgroundColor: c.primaryBtn,
+      borderRadius: 8,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    startBtnText: {
+      fontFamily: SERIF,
+      fontSize: 18,
+      fontWeight: "700",
+      color: c.primaryBtnText,
+      letterSpacing: 0.3,
+    },
 
-  siteLink: { alignItems: "center", paddingVertical: 24 },
-  siteLinkText: {
-    fontFamily: SERIF,
-    fontSize: 12,
-    color: "#C0B8B0",
-    letterSpacing: 0.5,
-  },
+    siteLink: { alignItems: "center", paddingVertical: 24 },
+    siteLinkText: {
+      fontFamily: SERIF,
+      fontSize: 12,
+      color: c.textTertiary,
+      letterSpacing: 0.5,
+    },
 
-  // Gutenberg browse
-  bookResult: {
-    backgroundColor: "#FDFAF5",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#D4C9BC",
-    padding: 14,
-    marginBottom: 10,
-  },
-  bookTitle: {
-    fontFamily: SERIF,
-    fontSize: 15,
-    color: "#382110",
-    fontWeight: "600",
-    marginBottom: 3,
-  },
-  bookAuthor: {
-    fontFamily: SERIF,
-    fontSize: 13,
-    color: "#6B5B4E",
-    marginBottom: 4,
-  },
-  bookMeta: { fontFamily: SERIF, fontSize: 11, color: "#C0B8B0" },
-});
+    bookResult: {
+      backgroundColor: c.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      padding: 14,
+      marginBottom: 10,
+    },
+    bookTitle: {
+      fontFamily: SERIF,
+      fontSize: 15,
+      color: c.textPrimary,
+      fontWeight: "600",
+      marginBottom: 3,
+    },
+    bookAuthor: {
+      fontFamily: SERIF,
+      fontSize: 13,
+      color: c.textMuted,
+      marginBottom: 4,
+    },
+    bookMeta: { fontFamily: SERIF, fontSize: 11, color: c.textTertiary },
+  });
+}

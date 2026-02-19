@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -19,6 +19,8 @@ import { firstIndexOfPage, WordEntry } from "../utils/pdfParser";
 import { saveProgress, clearProgress } from "../utils/progress";
 import { t } from "../utils/i18n";
 import { useLanguage } from "../contexts/LanguageContext";
+import { useTheme } from "../contexts/ThemeContext";
+import { getTheme, ThemeColors } from "../utils/theme";
 
 // WebView is only used on native for the dictionary modal; web uses window.open instead
 const WebView =
@@ -40,7 +42,7 @@ function midIndex(word: string): number {
   return Math.ceil(word.length / 2) - 1;
 }
 
-function WordDisplay({ word }: { word: string }) {
+function WordDisplay({ word, c }: { word: string; c: ThemeColors }) {
   if (!word) return null;
   const mid = midIndex(word);
   const before = word.slice(0, mid);
@@ -49,17 +51,17 @@ function WordDisplay({ word }: { word: string }) {
   return (
     // flex-row: left half right-aligns up to center, highlight sits at center,
     // right half left-aligns from center — ORP always at screen midpoint
-    <View style={styles.wordRow}>
-      <View style={styles.wordLeft}>
-        <Text style={styles.wordNormal} allowFontScaling={false}>
+    <View style={wordRowStyle}>
+      <View style={wordLeftStyle}>
+        <Text style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }} allowFontScaling={false}>
           {before}
         </Text>
       </View>
-      <Text style={styles.wordHighlight} allowFontScaling={false}>
+      <Text style={{ color: c.accent, fontFamily: SERIF, fontSize: 38, fontWeight: "700" }} allowFontScaling={false}>
         {highlight}
       </Text>
-      <View style={styles.wordRight}>
-        <Text style={styles.wordNormal} allowFontScaling={false}>
+      <View style={wordRightStyle}>
+        <Text style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }} allowFontScaling={false}>
           {after}
         </Text>
       </View>
@@ -67,12 +69,23 @@ function WordDisplay({ word }: { word: string }) {
   );
 }
 
+// Static layout styles that don't change with theme
+const wordRowStyle: any = {
+  flexDirection: "row",
+  alignItems: "center",
+  alignSelf: "stretch",
+};
+const wordLeftStyle: any = { flex: 1, alignItems: "flex-end" };
+const wordRightStyle: any = { flex: 1, alignItems: "flex-start" };
+
 function ContextDisplay({
   words,
   currentIndex,
+  c,
 }: {
   words: WordEntry[];
   currentIndex: number;
+  c: ThemeColors;
 }) {
   const start = Math.max(0, currentIndex - CONTEXT_BEFORE);
   const end = Math.min(words.length, currentIndex + CONTEXT_AFTER + 1);
@@ -80,11 +93,24 @@ function ContextDisplay({
   const hiOffset = currentIndex - start;
 
   return (
-    <Text style={styles.context} numberOfLines={3}>
+    <Text
+      style={{
+        fontFamily: SERIF,
+        fontSize: 13,
+        lineHeight: 20,
+        color: c.readerContextWord,
+        textAlign: "center",
+      }}
+      numberOfLines={3}
+    >
       {slice.map((w, i) => (
         <Text
           key={start + i}
-          style={i === hiOffset ? styles.contextCurrent : styles.contextWord}
+          style={
+            i === hiOffset
+              ? { color: c.readerContextCurrent, fontFamily: SERIF, fontSize: 13, fontWeight: "600" }
+              : { color: c.readerContextWord, fontFamily: SERIF, fontSize: 13 }
+          }
         >
           {i > 0 ? " " : ""}
           {w.word}
@@ -96,6 +122,10 @@ function ContextDisplay({
 
 export default function ReaderScreen({ route, navigation }: Props) {
   const { lang } = useLanguage();
+  const { scheme, toggleTheme } = useTheme();
+  const c = getTheme(scheme);
+  const styles = useMemo(() => makeStyles(c), [scheme]);
+
   const {
     words,
     wpm: initialWpm,
@@ -292,13 +322,13 @@ export default function ReaderScreen({ route, navigation }: Props) {
 
       {/* Context paragraph */}
       <View style={styles.contextContainer}>
-        <ContextDisplay words={words} currentIndex={currentIndex} />
+        <ContextDisplay words={words} currentIndex={currentIndex} c={c} />
       </View>
 
       {/* Reading area */}
       <TouchableWithoutFeedback onPress={handleTap}>
         <View style={styles.wordArea}>
-          <WordDisplay word={currentWord?.word ?? ""} />
+          <WordDisplay word={currentWord?.word ?? ""} c={c} />
 
           {/* Word-step arrows — absolutely positioned when paused */}
           {!isPlaying && (
@@ -366,19 +396,26 @@ export default function ReaderScreen({ route, navigation }: Props) {
             <Text style={styles.speedBtnText}>+25</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.flowBtn, flowReading && styles.flowBtnActive]}
-          onPress={() => setFlowReading((v) => !v)}
-        >
-          <Text
-            style={[
-              styles.flowBtnText,
-              flowReading && styles.flowBtnTextActive,
-            ]}
+        <View style={styles.speedToggles}>
+          <TouchableOpacity
+            style={[styles.flowBtn, flowReading && styles.flowBtnActive]}
+            onPress={() => setFlowReading((v) => !v)}
           >
-            {flowReading ? t(lang, "flowOn") : t(lang, "flowOff")}
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.flowBtnText,
+                flowReading && styles.flowBtnTextActive,
+              ]}
+            >
+              {flowReading ? t(lang, "flowOn") : t(lang, "flowOff")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme}>
+            <Text style={styles.themeBtnText}>
+              {scheme === "dark" ? "☀" : "☾"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Bottom bar */}
@@ -422,7 +459,7 @@ export default function ReaderScreen({ route, navigation }: Props) {
               onChangeText={setPageInput}
               keyboardType="number-pad"
               placeholder={String(currentPage)}
-              placeholderTextColor="#6a5a4a"
+              placeholderTextColor={c.readerModalPlaceholder}
               autoFocus
               returnKeyType="go"
               onSubmitEditing={jumpToPage}
@@ -478,372 +515,346 @@ export default function ReaderScreen({ route, navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#18100A",
-  },
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.readerBg,
+    },
 
-  progressTrack: {
-    height: 2,
-    backgroundColor: "#2C1D12",
-  },
-  progressFill: {
-    height: 2,
-    backgroundColor: "#C8A951",
-  },
+    progressTrack: {
+      height: 2,
+      backgroundColor: c.readerBorder,
+    },
+    progressFill: {
+      height: 2,
+      backgroundColor: c.accent,
+    },
 
-  // ── Context paragraph ─────────────────────────────────────────────────────
-  contextContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 14,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#221508",
-  },
-  context: {
-    fontFamily: SERIF,
-    fontSize: 13,
-    lineHeight: 20,
-    color: "#4A3828",
-    textAlign: "center",
-  },
-  contextWord: {
-    color: "#4A3828",
-    fontFamily: SERIF,
-    fontSize: 13,
-  },
-  contextCurrent: {
-    color: "#9A8060",
-    fontFamily: SERIF,
-    fontSize: 13,
-    fontWeight: "600",
-  },
+    // ── Context paragraph ─────────────────────────────────────────────────────
+    contextContainer: {
+      paddingHorizontal: 24,
+      paddingTop: 14,
+      paddingBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: c.readerBorderSubtle,
+    },
 
-  // ── Step arrows ───────────────────────────────────────────────────────────
-  stepBtnLeft: {
-    position: "absolute",
-    left: 24,
-    top: "60%",
-    transform: [{ translateY: -22 }],
-  },
-  stepBtnRight: {
-    position: "absolute",
-    right: 24,
-    top: "60%",
-    transform: [{ translateY: -22 }],
-  },
-  stepRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#221508",
-  },
-  stepBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#4A3020",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepBtnDisabled: {
-    opacity: 0.2,
-  },
-  stepBtnText: {
-    color: "#C8A951",
-    fontSize: 20,
-    fontFamily: SERIF,
-  },
+    // ── Step arrows ───────────────────────────────────────────────────────────
+    stepBtnLeft: {
+      position: "absolute",
+      left: 24,
+      top: "60%",
+      transform: [{ translateY: -22 }],
+    },
+    stepBtnRight: {
+      position: "absolute",
+      right: 24,
+      top: "60%",
+      transform: [{ translateY: -22 }],
+    },
+    stepRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      paddingHorizontal: 24,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: c.readerBorderSubtle,
+    },
+    stepBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: c.readerBorder,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    stepBtnDisabled: {
+      opacity: 0.2,
+    },
+    stepBtnText: {
+      color: c.accent,
+      fontSize: 20,
+      fontFamily: SERIF,
+    },
 
-  // ── Word area ─────────────────────────────────────────────────────────────
-  wordArea: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 32,
-  },
-  // Stretch across full width so left/right halves each get exactly 50%,
-  // placing the highlighted letter at the horizontal screen center
-  wordRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "stretch",
-  },
-  wordLeft: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  wordRight: {
-    flex: 1,
-    alignItems: "flex-start",
-  },
-  wordNormal: {
-    color: "#F4ECD8",
-    fontFamily: SERIF,
-    fontSize: 38,
-  },
-  wordHighlight: {
-    color: "#C8A951",
-    fontFamily: SERIF,
-    fontSize: 38,
-    fontWeight: "700",
-  },
-  pausedHint: {
-    position: "absolute",
-    bottom: 60,
-    alignItems: "center",
-    gap: 12,
-  },
-  pausedHintText: {
-    color: "#6A5A4A",
-    fontSize: 13,
-    fontFamily: SERIF,
-    letterSpacing: 0.5,
-  },
-  lookupBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#4A3020",
-  },
-  lookupBtnText: {
-    color: "#C8A951",
-    fontSize: 12,
-    fontFamily: SERIF,
-    letterSpacing: 0.5,
-  },
+    // ── Word area ─────────────────────────────────────────────────────────────
+    wordArea: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 32,
+    },
+    pausedHint: {
+      position: "absolute",
+      bottom: 60,
+      alignItems: "center",
+      gap: 12,
+    },
+    pausedHintText: {
+      color: c.readerTextMuted,
+      fontSize: 13,
+      fontFamily: SERIF,
+      letterSpacing: 0.5,
+    },
+    lookupBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 7,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.readerBorder,
+    },
+    lookupBtnText: {
+      color: c.accent,
+      fontSize: 12,
+      fontFamily: SERIF,
+      letterSpacing: 0.5,
+    },
 
-  // ── Dictionary modal ───────────────────────────────────────────────────────
-  dictModal: {
-    flex: 1,
-    backgroundColor: "#18100A",
-  },
-  dictHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2C1D12",
-  },
-  dictTitle: {
-    color: "#C8A951",
-    fontFamily: SERIF,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  dictClose: {
-    padding: 6,
-  },
-  dictCloseText: {
-    color: "#6A5A4A",
-    fontSize: 16,
-  },
+    // ── Dictionary modal ───────────────────────────────────────────────────────
+    dictModal: {
+      flex: 1,
+      backgroundColor: c.readerBg,
+    },
+    dictHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: c.readerBorder,
+    },
+    dictTitle: {
+      color: c.accent,
+      fontFamily: SERIF,
+      fontSize: 15,
+      fontWeight: "600",
+    },
+    dictClose: {
+      padding: 6,
+    },
+    dictCloseText: {
+      color: c.readerTextMuted,
+      fontSize: 16,
+    },
 
-  // ── Speed overlay ─────────────────────────────────────────────────────────
-  speedBar: {
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingBottom: 14,
-    backgroundColor: "#211509",
-    gap: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#2C1D12",
-  },
-  speedRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 24,
-  },
-  speedBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: "#4A3020",
-    borderRadius: 6,
-  },
-  speedBtnText: {
-    color: "#C8A951",
-    fontSize: 14,
-    fontFamily: SERIF,
-  },
-  speedValue: {
-    color: "#F4ECD8",
-    fontSize: 18,
-    fontFamily: SERIF,
-    minWidth: 90,
-    textAlign: "center",
-  },
-  flowBtn: {
-    paddingHorizontal: 18,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#4A3020",
-  },
-  flowBtnActive: {
-    borderColor: "#C8A951",
-    backgroundColor: "rgba(200,169,81,0.1)",
-  },
-  flowBtnText: {
-    color: "#6A5A4A",
-    fontSize: 12,
-    fontFamily: SERIF,
-    letterSpacing: 0.5,
-  },
-  flowBtnTextActive: {
-    color: "#C8A951",
-  },
+    // ── Speed overlay ─────────────────────────────────────────────────────────
+    speedBar: {
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingBottom: 14,
+      backgroundColor: c.readerBarBg,
+      gap: 10,
+      borderTopWidth: 1,
+      borderTopColor: c.readerBorder,
+    },
+    speedRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 24,
+    },
+    speedBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: c.readerBorder,
+      borderRadius: 6,
+    },
+    speedBtnText: {
+      color: c.accent,
+      fontSize: 14,
+      fontFamily: SERIF,
+    },
+    speedValue: {
+      color: c.readerText,
+      fontSize: 18,
+      fontFamily: SERIF,
+      minWidth: 90,
+      textAlign: "center",
+    },
+    speedToggles: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    flowBtn: {
+      paddingHorizontal: 18,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.readerBorder,
+    },
+    flowBtnActive: {
+      borderColor: c.accent,
+      backgroundColor: "rgba(200,169,81,0.1)",
+    },
+    flowBtnText: {
+      color: c.readerTextMuted,
+      fontSize: 12,
+      fontFamily: SERIF,
+      letterSpacing: 0.5,
+    },
+    flowBtnTextActive: {
+      color: c.accent,
+    },
+    themeBtn: {
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: c.readerBorder,
+    },
+    themeBtnText: {
+      color: c.readerTextMuted,
+      fontSize: 14,
+    },
 
-  // ── Bottom bar ────────────────────────────────────────────────────────────
-  bottomBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: "#120C06",
-    borderTopWidth: 1,
-    borderTopColor: "#2C1D12",
-  },
-  backBtn: { minWidth: 60 },
-  backBtnText: {
-    color: "#6A5A4A",
-    fontSize: 13,
-    fontFamily: SERIF,
-  },
-  pageBtn: { alignItems: "center" },
-  pageBtnText: {
-    color: "#C8A951",
-    fontSize: 16,
-    fontFamily: SERIF,
-    fontWeight: "600",
-  },
-  wpmLabel: {
-    color: "#6A5A4A",
-    fontSize: 13,
-    fontFamily: SERIF,
-    minWidth: 60,
-    textAlign: "right",
-  },
+    // ── Bottom bar ────────────────────────────────────────────────────────────
+    bottomBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 24,
+      paddingVertical: 16,
+      backgroundColor: c.readerBottomBg,
+      borderTopWidth: 1,
+      borderTopColor: c.readerBorder,
+    },
+    backBtn: { minWidth: 60 },
+    backBtnText: {
+      color: c.readerTextMuted,
+      fontSize: 13,
+      fontFamily: SERIF,
+    },
+    pageBtn: { alignItems: "center" },
+    pageBtnText: {
+      color: c.accent,
+      fontSize: 16,
+      fontFamily: SERIF,
+      fontWeight: "600",
+    },
+    wpmLabel: {
+      color: c.readerTextMuted,
+      fontSize: 13,
+      fontFamily: SERIF,
+      minWidth: 60,
+      textAlign: "right",
+    },
 
-  // ── Done screen ───────────────────────────────────────────────────────────
-  doneContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 40,
-  },
-  doneIcon: {
-    fontSize: 48,
-    color: "#C8A951",
-    marginBottom: 20,
-  },
-  doneTitle: {
-    color: "#F4ECD8",
-    fontSize: 32,
-    fontFamily: SERIF,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  doneSub: {
-    color: "#6A5A4A",
-    fontSize: 15,
-    fontFamily: SERIF,
-    marginBottom: 40,
-  },
-  doneBtn: {
-    borderWidth: 1,
-    borderColor: "#C8A951",
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-  },
-  doneBtnText: {
-    color: "#C8A951",
-    fontSize: 16,
-    fontFamily: SERIF,
-  },
+    // ── Done screen ───────────────────────────────────────────────────────────
+    doneContainer: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 40,
+    },
+    doneIcon: {
+      fontSize: 48,
+      color: c.accent,
+      marginBottom: 20,
+    },
+    doneTitle: {
+      color: c.readerText,
+      fontSize: 32,
+      fontFamily: SERIF,
+      fontWeight: "700",
+      marginBottom: 8,
+    },
+    doneSub: {
+      color: c.readerTextMuted,
+      fontSize: 15,
+      fontFamily: SERIF,
+      marginBottom: 40,
+    },
+    doneBtn: {
+      borderWidth: 1,
+      borderColor: c.accent,
+      borderRadius: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 32,
+    },
+    doneBtnText: {
+      color: c.accent,
+      fontSize: 16,
+      fontFamily: SERIF,
+    },
 
-  // ── Page jump modal ───────────────────────────────────────────────────────
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalCard: {
-    width: "78%",
-    backgroundColor: "#211509",
-    borderRadius: 12,
-    padding: 28,
-    borderWidth: 1,
-    borderColor: "#3A2515",
-    alignItems: "center",
-    maxWidth: 400,
-  },
-  modalTitle: {
-    color: "#F4ECD8",
-    fontSize: 20,
-    fontFamily: SERIF,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
-  modalSub: {
-    color: "#6A5A4A",
-    fontSize: 13,
-    fontFamily: SERIF,
-    marginBottom: 18,
-  },
-  modalInput: {
-    width: "100%",
-    backgroundColor: "#180E06",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#3A2515",
-    color: "#F4ECD8",
-    fontSize: 28,
-    fontFamily: SERIF,
-    textAlign: "center",
-    paddingVertical: 10,
-    marginBottom: 20,
-  },
-  modalBtns: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
-  },
-  modalCancel: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#3A2515",
-  },
-  modalCancelText: {
-    color: "#6A5A4A",
-    fontFamily: SERIF,
-    fontSize: 15,
-  },
-  modalConfirm: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: "center",
-    borderRadius: 8,
-    backgroundColor: "#C8A951",
-  },
-  modalConfirmText: {
-    color: "#18100A",
-    fontFamily: SERIF,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-});
+    // ── Page jump modal ───────────────────────────────────────────────────────
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    modalCard: {
+      width: "78%",
+      backgroundColor: c.readerModalBg,
+      borderRadius: 12,
+      padding: 28,
+      borderWidth: 1,
+      borderColor: c.readerModalBorder,
+      alignItems: "center",
+      maxWidth: 400,
+    },
+    modalTitle: {
+      color: c.readerModalText,
+      fontSize: 20,
+      fontFamily: SERIF,
+      fontWeight: "700",
+      marginBottom: 4,
+    },
+    modalSub: {
+      color: c.readerTextMuted,
+      fontSize: 13,
+      fontFamily: SERIF,
+      marginBottom: 18,
+    },
+    modalInput: {
+      width: "100%",
+      backgroundColor: c.readerModalInputBg,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.readerModalBorder,
+      color: c.readerModalText,
+      fontSize: 28,
+      fontFamily: SERIF,
+      textAlign: "center",
+      paddingVertical: 10,
+      marginBottom: 20,
+    },
+    modalBtns: {
+      flexDirection: "row",
+      gap: 12,
+      width: "100%",
+    },
+    modalCancel: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.readerModalBorder,
+    },
+    modalCancelText: {
+      color: c.readerTextMuted,
+      fontFamily: SERIF,
+      fontSize: 15,
+    },
+    modalConfirm: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      borderRadius: 8,
+      backgroundColor: c.accent,
+    },
+    modalConfirmText: {
+      color: "#18100A",
+      fontFamily: SERIF,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+  });
+}
