@@ -50,7 +50,7 @@ import type { RootStackParamList } from "../../App";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 type ParseState = "idle" | "loading" | "parsing" | "ready" | "error";
-type InputMode = "file" | "url" | "gutenberg";
+type InputMode = "file" | "gutenberg";
 
 const SERIF = Platform.select({
   ios: "Georgia",
@@ -86,7 +86,6 @@ export default function HomeScreen({ navigation }: Props) {
   const [words, setWords] = useState<WordEntry[]>([]);
   const [numPages, setNumPages] = useState(0);
   const [inputMode, setInputMode] = useState<InputMode>("file");
-  const [pdfUrl, setPdfUrl] = useState("");
 
   // Progress / starting page state
   const [fileKey, setFileKey] = useState("");
@@ -228,57 +227,6 @@ export default function HomeScreen({ navigation }: Props) {
       setParseState("idle");
     }
   }, [dispatch]);
-
-  // ── URL load ──────────────────────────────────────────────────────────────
-  const loadFromUrl = useCallback(async () => {
-    const url = pdfUrl.trim();
-    if (!url) return;
-
-    const name = url.split("/").pop()?.split("?")[0] ?? "document";
-    const type = detectFileType(name);
-    const key = makeFileKey(url);
-
-    setFileName(name);
-    setFileType(type);
-    setFileKey(key);
-    setSavedProgress(null);
-    setStartPage(1);
-    setStartPageText("1");
-    setStartWordIndex(0);
-    setParseState("loading");
-    setWords([]);
-    setProgress({ current: 0, total: 0 });
-
-    try {
-      if (type === "txt" || type === "md" || type === "html") {
-        const cacheUri = FileSystem.cacheDirectory + "sr_download";
-        await FileSystem.downloadAsync(url, cacheUri);
-        const raw = await FileSystem.readAsStringAsync(cacheUri, {
-          encoding: FileSystem.EncodingType.UTF8,
-        });
-        const { words: parsed, numPages: np } = parseTextContent(raw, type);
-        setWords(parsed);
-        setNumPages(np);
-        setParseState("ready");
-      } else {
-        const cacheUri = FileSystem.cacheDirectory + "sr_download";
-        const { status } = await FileSystem.downloadAsync(url, cacheUri);
-        if (status !== 200) throw new Error(`HTTP ${status}`);
-        const base64 = await FileSystem.readAsStringAsync(cacheUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const msgType = type === "epub" ? "PARSE_EPUB" : "PARSE_PDF";
-        setParseState("parsing");
-        dispatch({ type: msgType, base64 });
-      }
-    } catch (err) {
-      Alert.alert(
-        "Download failed",
-        err instanceof Error ? err.message : String(err),
-      );
-      setParseState("error");
-    }
-  }, [pdfUrl, dispatch]);
 
   const searchGutenberg = useCallback(async () => {
     const q = gutenbergQuery.trim();
@@ -458,22 +406,6 @@ export default function HomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={[
               styles.modeBtn,
-              inputMode === "url" && styles.modeBtnActive,
-            ]}
-            onPress={() => setInputMode("url")}
-          >
-            <Text
-              style={[
-                styles.modeBtnText,
-                inputMode === "url" && styles.modeBtnActiveText,
-              ]}
-            >
-              {t(lang, "fromUrl")}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.modeBtn,
               inputMode === "gutenberg" && styles.modeBtnActive,
             ]}
             onPress={() => setInputMode("gutenberg")}
@@ -508,35 +440,6 @@ export default function HomeScreen({ navigation }: Props) {
                   : t(lang, "chooseFile")}
             </Text>
           </TouchableOpacity>
-        )}
-
-        {inputMode === "url" && (
-          <View style={styles.urlRow}>
-            <TextInput
-              style={styles.urlInput}
-              value={pdfUrl}
-              onChangeText={setPdfUrl}
-              placeholder="https://example.com/book.epub"
-              placeholderTextColor={c.placeholder}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="go"
-              onSubmitEditing={loadFromUrl}
-              editable={!isBusy}
-            />
-            <TouchableOpacity
-              style={[
-                styles.urlBtn,
-                (isBusy || !pdfUrl.trim()) && styles.dimmed,
-              ]}
-              onPress={loadFromUrl}
-              disabled={isBusy || !pdfUrl.trim()}
-            >
-              <Text style={styles.urlBtnText}>
-                {isBusy ? "…" : t(lang, "load")}
-              </Text>
-            </TouchableOpacity>
-          </View>
         )}
 
         {inputMode === "gutenberg" && (
