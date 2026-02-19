@@ -18,7 +18,39 @@ Each word is split at its optimal recognition point — the letter your brain us
 
 ## Flow Mode
 
-Natural reading is not metronomic. Flow mode detects punctuation (`.`, `,`, `!`, `?`, `;`, `:`, `—`) and doubles the display time for those words, giving your brain the natural pause it expects at the end of a clause or sentence. Toggle on/off from the speed controls bar. On by default.
+Natural reading is not metronomic — your brain needs extra time at punctuation boundaries and for long, complex words. Flow mode adjusts each word's display duration dynamically. Toggle on/off from the speed controls bar. On by default.
+
+**Algorithm**
+
+Every word starts from a `baseDelay` derived from your WPM setting:
+
+```
+baseDelay = round(60,000 ms / wpm)
+```
+
+Two factors can extend that delay:
+
+1. **Punctuation pause** — if the word contains any of `. , ! ? ; : - – —`, the minimum multiplier is raised to **2.0×** (a full extra base-duration pause).
+2. **Length bonus** — words longer than 8 characters add **+10% per extra character**: `lengthBonus = max(0, length − 8) × 0.1`.
+
+These are combined and capped at **2.5×**:
+
+```
+multiplier = min(2.5, max(punctMultiplier, 1 + lengthBonus))
+delay      = round(baseDelay × multiplier)
+```
+
+Where `punctMultiplier` is `2` if the word contains punctuation, otherwise `1`.
+
+**Examples at 250 WPM** (baseDelay = 240 ms)
+
+| Word | Punctuation | Length bonus | Multiplier | Delay |
+|------|-------------|--------------|------------|-------|
+| `the` | — | 0 | 1.0× | 240 ms |
+| `reading,` | ✓ | 0 | 2.0× | 480 ms |
+| `extraordinary` | — | (14−8)×0.1 = 0.6 | 1.6× | 384 ms |
+| `unfortunately,` | ✓ | (15−8)×0.1 = 0.7 | 2.0× (punct wins) | 480 ms |
+| `internationally,` | ✓ | (17−8)×0.1 = 0.9 | 2.5× (capped) | 600 ms |
 
 ---
 
@@ -60,6 +92,25 @@ Search and load any of the 70,000+ free books from Project Gutenberg directly in
 
 - **Native (iOS / Android):** downloads the file to device cache, then parses on-device
 - **Web:** EPUB/PDF open via a new tab for download, then drag-and-drop into Upload; plain-text-only titles open directly in a new tab
+
+---
+
+## Light & Dark Mode
+
+SpeederReader supports both a light and a dark theme, optimized for different reading environments.
+
+| Theme | Best for |
+|-------|----------|
+| **Light** — warm cream background, dark brown text | Daytime, bright rooms, outdoor reading |
+| **Dark** — near-black background, soft cream text | Night reading, low-light environments, reducing eye strain |
+
+Toggle the theme at any time with the **☾ / ☀** button:
+- **Home screen:** top-right corner, next to the language toggle
+- **Reader:** speed controls bar, next to the Flow Mode toggle
+
+Your preference is saved locally and persists across sessions. On first launch, SpeederReader matches your device or browser system theme (dark or light).
+
+The gold ORP highlight (`#C8A951`) and accent color remain consistent in both modes for visual continuity.
 
 ---
 

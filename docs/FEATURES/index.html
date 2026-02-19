@@ -32,7 +32,72 @@
 <p>Each word is split at its optimal recognition point — the letter your brain uses as an anchor when reading. For odd-length words this is the exact middle letter; for even-length words it is the left-of-center letter. That letter is highlighted in gold and aligned to the horizontal screen center so your gaze never shifts.</p>
 <hr />
 <h2 id="flow-mode">Flow Mode</h2>
-<p>Natural reading is not metronomic. Flow mode detects punctuation (<code>.</code>, <code>,</code>, <code>!</code>, <code>?</code>, <code>;</code>, <code>:</code>, <code>—</code>) and doubles the display time for those words, giving your brain the natural pause it expects at the end of a clause or sentence. Toggle on/off from the speed controls bar. On by default.</p>
+<p>Natural reading is not metronomic — your brain needs extra time at punctuation boundaries and for long, complex words. Flow mode adjusts each word's display duration dynamically. Toggle on/off from the speed controls bar. On by default.</p>
+<p><strong>Algorithm</strong></p>
+<p>Every word starts from a <code>baseDelay</code> derived from your WPM setting:</p>
+<pre><code>baseDelay = round(60,000 ms / wpm)
+</code></pre>
+<p>Two factors can extend that delay:</p>
+<ol>
+<li><strong>Punctuation pause</strong> — if the word contains any of <code>. , ! ? ; : - – —</code>, the minimum multiplier is raised to <strong>2.0×</strong> (a full extra base-duration pause).
+</li>
+<li><strong>Length bonus</strong> — words longer than 8 characters add <strong>+10% per extra character</strong>: <code>lengthBonus = max(0, length − 8) × 0.1</code>.
+</li>
+</ol>
+<p>These are combined and capped at <strong>2.5×</strong>:</p>
+<pre><code>multiplier = min(2.5, max(punctMultiplier, 1 + lengthBonus))
+delay      = round(baseDelay × multiplier)
+</code></pre>
+<p>Where <code>punctMultiplier</code> is <code>2</code> if the word contains punctuation, otherwise <code>1</code>.</p>
+<p><strong>Examples at 250 WPM</strong> (baseDelay = 240 ms)</p>
+<table>
+<thead>
+<tr>
+<th>Word</th>
+<th>Punctuation</th>
+<th>Length bonus</th>
+<th>Multiplier</th>
+<th>Delay</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>the</code></td>
+<td>—</td>
+<td>0</td>
+<td>1.0×</td>
+<td>240 ms</td>
+</tr>
+<tr>
+<td><code>reading,</code></td>
+<td>✓</td>
+<td>0</td>
+<td>2.0×</td>
+<td>480 ms</td>
+</tr>
+<tr>
+<td><code>extraordinary</code></td>
+<td>—</td>
+<td>(14−8)×0.1 = 0.6</td>
+<td>1.6×</td>
+<td>384 ms</td>
+</tr>
+<tr>
+<td><code>unfortunately,</code></td>
+<td>✓</td>
+<td>(15−8)×0.1 = 0.7</td>
+<td>2.0× (punct wins)</td>
+<td>480 ms</td>
+</tr>
+<tr>
+<td><code>internationally,</code></td>
+<td>✓</td>
+<td>(17−8)×0.1 = 0.9</td>
+<td>2.5× (capped)</td>
+<td>600 ms</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="context-strip">Context Strip</h2>
 <p>A paragraph-level view sits above the RSVP word display, showing the surrounding text with the current word highlighted. This keeps you oriented in the narrative and helps comprehension — you always know where you are in the sentence.</p>
@@ -63,6 +128,36 @@
 <li><strong>Web:</strong> EPUB/PDF open via a new tab for download, then drag-and-drop into Upload; plain-text-only titles open directly in a new tab
 </li>
 </ul>
+<hr />
+<h2 id="light-dark-mode">Light &amp; Dark Mode</h2>
+<p>SpeederReader supports both a light and a dark theme, optimized for different reading environments.</p>
+<table>
+<thead>
+<tr>
+<th>Theme</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Light</strong> — warm cream background, dark brown text</td>
+<td>Daytime, bright rooms, outdoor reading</td>
+</tr>
+<tr>
+<td><strong>Dark</strong> — near-black background, soft cream text</td>
+<td>Night reading, low-light environments, reducing eye strain</td>
+</tr>
+</tbody>
+</table>
+<p>Toggle the theme at any time with the <strong>☾ / ☀</strong> button:</p>
+<ul>
+<li><strong>Home screen:</strong> top-right corner, next to the language toggle
+</li>
+<li><strong>Reader:</strong> speed controls bar, next to the Flow Mode toggle
+</li>
+</ul>
+<p>Your preference is saved locally and persists across sessions. On first launch, SpeederReader matches your device or browser system theme (dark or light).</p>
+<p>The gold ORP highlight (<code>#C8A951</code>) and accent color remain consistent in both modes for visual continuity.</p>
 <hr />
 <h2 id="localization-english-spanish">Localization (English &amp; Spanish)</h2>
 <p>The full UI is available in English and Spanish. Language is detected automatically from your device or browser settings on first launch. You can switch languages at any time with the <strong>EN / ES</strong> toggle in the top-right corner of the home screen. Your preference is saved locally and persists across sessions.</p>
