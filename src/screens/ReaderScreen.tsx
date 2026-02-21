@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -34,8 +40,9 @@ const SERIF = Platform.select({
   default: "Georgia",
 });
 
-const CONTEXT_BEFORE = 14;
-const CONTEXT_AFTER = 14;
+const CONTEXT_LINES = 5;
+const WORDS_PER_LINE_EST = 8; // rough estimate for advance threshold
+const CONTEXT_WINDOW = WORDS_PER_LINE_EST * CONTEXT_LINES; // ~40 words fills 5 lines
 
 // ORP: middle letter for odd-length words; left-of-center for even-length words
 function midIndex(word: string): number {
@@ -53,15 +60,29 @@ function WordDisplay({ word, c }: { word: string; c: ThemeColors }) {
     // right half left-aligns from center — ORP always at screen midpoint
     <View style={wordRowStyle}>
       <View style={wordLeftStyle}>
-        <Text style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }} allowFontScaling={false}>
+        <Text
+          style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }}
+          allowFontScaling={false}
+        >
           {before}
         </Text>
       </View>
-      <Text style={{ color: c.accent, fontFamily: SERIF, fontSize: 38, fontWeight: "700" }} allowFontScaling={false}>
+      <Text
+        style={{
+          color: c.accent,
+          fontFamily: SERIF,
+          fontSize: 38,
+          fontWeight: "700",
+        }}
+        allowFontScaling={false}
+      >
         {highlight}
       </Text>
       <View style={wordRightStyle}>
-        <Text style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }} allowFontScaling={false}>
+        <Text
+          style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }}
+          allowFontScaling={false}
+        >
           {after}
         </Text>
       </View>
@@ -80,35 +101,106 @@ const wordRightStyle: any = { flex: 1, alignItems: "flex-start" };
 
 function ContextDisplay({
   words,
+  windowStart,
   currentIndex,
   c,
+  onLastVisibleIndex,
 }: {
   words: WordEntry[];
+  windowStart: number;
   currentIndex: number;
   c: ThemeColors;
+  onLastVisibleIndex: (idx: number) => void;
 }) {
-  const start = Math.max(0, currentIndex - CONTEXT_BEFORE);
-  const end = Math.min(words.length, currentIndex + CONTEXT_AFTER + 1);
-  const slice = words.slice(start, end);
-  const hiOffset = currentIndex - start;
+  // Show words from windowStart; render extra so numberOfLines/overflow clips cleanly
+  const displayEnd = Math.min(words.length, windowStart + CONTEXT_WINDOW + 40);
+  const slice = words.slice(windowStart, displayEnd);
+  const hiOffset = currentIndex - windowStart;
+
+  const containerRef = useRef<any>(null);
+  const measuredWindowRef = useRef<number>(-1);
+
+  // Native: use onTextLayout lines data
+  const handleTextLayout = useCallback(
+    (e: any) => {
+      const lines: Array<{ text: string }> | undefined = e.nativeEvent?.lines;
+      if (!lines || lines.length === 0) return;
+      // Reset when window changes
+      if (measuredWindowRef.current !== windowStart) {
+        measuredWindowRef.current = windowStart;
+      }
+      const combined = lines.map((l) => l.text).join("");
+      const visibleWordCount = combined
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+      const lastIdx = Math.min(
+        words.length - 1,
+        windowStart + visibleWordCount - 1,
+      );
+      onLastVisibleIndex(Math.max(windowStart, lastIdx));
+    },
+    [words.length, windowStart, onLastVisibleIndex],
+  );
+
+  // Web: DOM-based measurement — count child spans within the visible container bounds
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const el = containerRef.current;
+    if (!el) return;
+    // Small delay to allow layout to settle
+    const timer = setTimeout(() => {
+      const node =
+        el instanceof HTMLElement ? el : ((el as any)?._nativeTag ?? null);
+      if (!node || !(node instanceof HTMLElement)) return;
+      const containerRect = node.getBoundingClientRect();
+      const containerBottom = containerRect.bottom;
+      const spans = node.querySelectorAll("span");
+      let lastVisible = windowStart;
+      let wordIdx = 0;
+      for (let i = 0; i < spans.length; i++) {
+        const span = spans[i];
+        // Skip wrapper spans that contain children (only count leaf text spans)
+        if (span.children.length > 0) continue;
+        const rect = span.getBoundingClientRect();
+        if (rect.top < containerBottom && rect.height > 0) {
+          lastVisible = windowStart + wordIdx;
+        }
+        wordIdx++;
+      }
+      onLastVisibleIndex(Math.max(windowStart, lastVisible));
+    }, 20);
+    return () => clearTimeout(timer);
+  }, [windowStart, currentIndex, words.length, onLastVisibleIndex]);
+
+  const containerHeight = CONTEXT_LINES * 20 + 2; // lineHeight = 20, +2 for sub-pixel tolerance
 
   return (
     <Text
+      ref={containerRef}
       style={{
         fontFamily: SERIF,
         fontSize: 13,
         lineHeight: 20,
         color: c.readerContextWord,
-        textAlign: "center",
+        textAlign: "left",
+        maxHeight: containerHeight,
+        overflow: "hidden",
       }}
-      numberOfLines={3}
+      numberOfLines={Platform.OS !== "web" ? CONTEXT_LINES : undefined}
+      ellipsizeMode={Platform.OS !== "web" ? "clip" : undefined}
+      onTextLayout={handleTextLayout}
     >
       {slice.map((w, i) => (
         <Text
-          key={start + i}
+          key={windowStart + i}
           style={
             i === hiOffset
-              ? { color: c.readerContextCurrent, fontFamily: SERIF, fontSize: 13, fontWeight: "600" }
+              ? {
+                  color: c.readerContextCurrent,
+                  fontFamily: SERIF,
+                  fontSize: 13,
+                }
               : { color: c.readerContextWord, fontFamily: SERIF, fontSize: 13 }
           }
         >
@@ -135,6 +227,10 @@ export default function ReaderScreen({ route, navigation }: Props) {
   } = route.params;
 
   const [currentIndex, setCurrentIndex] = useState(startIndex);
+  const [windowStart, setWindowStart] = useState(() => Math.max(0, startIndex));
+  const windowStartRef = useRef(Math.max(0, startIndex));
+  // Tracks the actual last visible word index measured from onTextLayout
+  const lastVisibleIndexRef = useRef(startIndex + CONTEXT_WINDOW - 1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [wpm, setWpm] = useState(initialWpm);
   const [showJumper, setShowJumper] = useState(false);
@@ -157,6 +253,33 @@ export default function ReaderScreen({ route, navigation }: Props) {
   useEffect(() => {
     flowReadingRef.current = flowReading;
   }, [flowReading]);
+
+  // Called by ContextDisplay after each text layout measurement
+  const handleLastVisibleIndex = useCallback((idx: number) => {
+    lastVisibleIndexRef.current = idx;
+  }, []);
+
+  // Advance context window only when the highlighted word reaches the last visible word
+  // (measured by onTextLayout), not on a word-count estimate.
+  // Overlap ensures words near the boundary appear in both old and new windows,
+  // preventing skipped words when bold reflow causes slight measurement variance.
+  const WINDOW_OVERLAP = 3;
+  useEffect(() => {
+    const ws = windowStartRef.current;
+    if (currentIndex < ws) {
+      // Stepped backwards past window start — pull window back
+      const next = Math.max(0, currentIndex);
+      windowStartRef.current = next;
+      lastVisibleIndexRef.current = next + CONTEXT_WINDOW - 1; // reset estimate; layout will correct it
+      setWindowStart(next);
+    } else if (currentIndex > lastVisibleIndexRef.current) {
+      // Highlighted word has passed the last visible word — advance with overlap
+      const next = Math.max(0, currentIndex - WINDOW_OVERLAP);
+      windowStartRef.current = next;
+      lastVisibleIndexRef.current = next + CONTEXT_WINDOW - 1; // reset estimate; layout will correct it
+      setWindowStart(next);
+    }
+  }, [currentIndex]);
 
   // Inline so it always closes over latest `words`; assigned to scheduleRef each render
   // so recursive timeout callbacks always call the current version.
@@ -255,6 +378,19 @@ export default function ReaderScreen({ route, navigation }: Props) {
     [words.length],
   );
 
+  const stepWindow = useCallback(
+    (direction: 1 | -1) => {
+      const jump = Math.max(1, lastVisibleIndexRef.current - windowStartRef.current);
+      const next = Math.min(
+        words.length - 1,
+        Math.max(0, indexRef.current + direction * jump),
+      );
+      indexRef.current = next;
+      setCurrentIndex(next);
+    },
+    [words.length],
+  );
+
   const adjustWpm = (delta: number) =>
     setWpm((prev) => Math.min(750, Math.max(50, prev + delta)));
 
@@ -287,6 +423,27 @@ export default function ReaderScreen({ route, navigation }: Props) {
   }, [fileKey, words, navigation]);
 
   const progress = words.length > 0 ? currentIndex / words.length : 0;
+
+  // Compute estimated time to next page, accounting for flow-reading delays
+  const minsToNextPage = useMemo(() => {
+    if (currentIndex >= words.length - 1) return 0;
+    const curPage = words[currentIndex]?.page ?? 1;
+    const baseDelay = 60000 / wpm; // ms per word
+    let totalMs = 0;
+    for (let i = currentIndex + 1; i < words.length; i++) {
+      if (words[i].page !== curPage) break;
+      if (flowReading) {
+        const w = words[i].word;
+        const hasPunct = /[.,!?;:\-—–]/.test(w);
+        const lengthBonus = Math.max(0, w.length - 8) * 0.1;
+        const multiplier = Math.min(2.5, Math.max(hasPunct ? 2 : 1, 1 + lengthBonus));
+        totalMs += baseDelay * multiplier;
+      } else {
+        totalMs += baseDelay;
+      }
+    }
+    return totalMs / 60000;
+  }, [currentIndex, words, wpm, flowReading]);
 
   if (isFinished) {
     return (
@@ -322,7 +479,13 @@ export default function ReaderScreen({ route, navigation }: Props) {
 
       {/* Context paragraph */}
       <View style={styles.contextContainer}>
-        <ContextDisplay words={words} currentIndex={currentIndex} c={c} />
+        <ContextDisplay
+          words={words}
+          windowStart={windowStart}
+          currentIndex={currentIndex}
+          c={c}
+          onLastVisibleIndex={handleLastVisibleIndex}
+        />
       </View>
 
       {/* Reading area */}
@@ -330,9 +493,34 @@ export default function ReaderScreen({ route, navigation }: Props) {
         <View style={styles.wordArea}>
           <WordDisplay word={currentWord?.word ?? ""} c={c} />
 
-          {/* Word-step arrows — absolutely positioned when paused */}
+          {/* Navigation arrows — absolutely positioned when paused */}
           {!isPlaying && (
             <>
+              {/* Window-skip (chunk) arrows */}
+              <TouchableOpacity
+                style={[
+                  styles.stepBtn,
+                  styles.chunkBtnLeft,
+                  currentIndex <= 0 && styles.stepBtnDisabled,
+                ]}
+                onPress={() => stepWindow(-1)}
+                disabled={currentIndex <= 0}
+              >
+                <Text style={styles.stepBtnText}>⇐</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.stepBtn,
+                  styles.chunkBtnRight,
+                  currentIndex >= words.length - 1 && styles.stepBtnDisabled,
+                ]}
+                onPress={() => stepWindow(1)}
+                disabled={currentIndex >= words.length - 1}
+              >
+                <Text style={styles.stepBtnText}>⇒</Text>
+              </TouchableOpacity>
+
+              {/* Word-step arrows */}
               <TouchableOpacity
                 style={[
                   styles.stepBtn,
@@ -363,6 +551,11 @@ export default function ReaderScreen({ route, navigation }: Props) {
               <Text style={styles.pausedHintText}>{t(lang, "tapToPause")}</Text>
             ) : (
               <>
+                <Text style={styles.pageTimeText}>
+                  {minsToNextPage < 1
+                    ? `${Math.ceil(minsToNextPage * 60)}s to next page`
+                    : `${minsToNextPage.toFixed(1)} min to next page`}
+                </Text>
                 <Text style={styles.pausedHintText}>
                   {t(lang, "tapToResume")}
                 </Text>
@@ -553,6 +746,18 @@ function makeStyles(c: ThemeColors) {
       top: "60%",
       transform: [{ translateY: -22 }],
     },
+    chunkBtnLeft: {
+      position: "absolute",
+      left: 24,
+      top: "40%",
+      transform: [{ translateY: -22 }],
+    },
+    chunkBtnRight: {
+      position: "absolute",
+      right: 24,
+      top: "40%",
+      transform: [{ translateY: -22 }],
+    },
     stepRow: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -597,6 +802,13 @@ function makeStyles(c: ThemeColors) {
       fontSize: 13,
       fontFamily: SERIF,
       letterSpacing: 0.5,
+    },
+    pageTimeText: {
+      color: c.accent,
+      fontSize: 14,
+      fontFamily: SERIF,
+      letterSpacing: 0.3,
+      marginBottom: 4,
     },
     lookupBtn: {
       paddingHorizontal: 16,
