@@ -1,3 +1,5 @@
+@image https://raw.githubusercontent.com/jottenlips/speeder-reader/refs/heads/main/social-image.png
+
 # SpeederReader — Features
 
 ## Speed Reading (RSVP)
@@ -44,13 +46,13 @@ Where `punctMultiplier` is `2` if the word contains punctuation, otherwise `1`.
 
 **Examples at 250 WPM** (baseDelay = 240 ms)
 
-| Word | Punctuation | Length bonus | Multiplier | Delay |
-|------|-------------|--------------|------------|-------|
-| `the` | — | 0 | 1.0× | 240 ms |
-| `reading,` | ✓ | 0 | 2.0× | 480 ms |
-| `extraordinary` | — | (14−8)×0.1 = 0.6 | 1.6× | 384 ms |
-| `unfortunately,` | ✓ | (15−8)×0.1 = 0.7 | 2.0× (punct wins) | 480 ms |
-| `internationally,` | ✓ | (17−8)×0.1 = 0.9 | 2.5× (capped) | 600 ms |
+| Word               | Punctuation | Length bonus     | Multiplier        | Delay  |
+| ------------------ | ----------- | ---------------- | ----------------- | ------ |
+| `the`              | —           | 0                | 1.0×              | 240 ms |
+| `reading,`         | ✓           | 0                | 2.0×              | 480 ms |
+| `extraordinary`    | —           | (14−8)×0.1 = 0.6 | 1.6×              | 384 ms |
+| `unfortunately,`   | ✓           | (15−8)×0.1 = 0.7 | 2.0× (punct wins) | 480 ms |
+| `internationally,` | ✓           | (17−8)×0.1 = 0.9 | 2.5× (capped)     | 600 ms |
 
 ---
 
@@ -69,6 +71,7 @@ When paused, left `←` and right `→` arrow buttons appear below the context s
 ## Dictionary Lookup
 
 Tap **look up word** when paused to look up the current word on Dictionary.com:
+
 - **Web:** opens in a new browser tab
 - **iOS / Android:** opens an in-app WebView so you never leave the reader
 
@@ -99,12 +102,13 @@ Search and load any of the 70,000+ free books from Project Gutenberg directly in
 
 SpeederReader supports both a light and a dark theme, optimized for different reading environments.
 
-| Theme | Best for |
-|-------|----------|
-| **Light** — warm cream background, dark brown text | Daytime, bright rooms, outdoor reading |
-| **Dark** — near-black background, soft cream text | Night reading, low-light environments, reducing eye strain |
+| Theme                                              | Best for                                                   |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| **Light** — warm cream background, dark brown text | Daytime, bright rooms, outdoor reading                     |
+| **Dark** — near-black background, soft cream text  | Night reading, low-light environments, reducing eye strain |
 
 Toggle the theme at any time with the **☾ / ☀** button:
+
 - **Home screen:** top-right corner, next to the language toggle
 - **Reader:** speed controls bar, next to the Flow Mode toggle
 
@@ -124,12 +128,12 @@ Localized strings cover all screens: home screen controls, progress indicators, 
 
 ## Supported Formats
 
-| Format | Notes |
-|--------|-------|
-| PDF | Parsed via PDF.js (on-device) |
-| EPUB | Parsed via JSZip; each chapter = one page |
-| HTML | Parsed directly in JS |
-| Markdown | Parsed directly in JS |
-| Plain text | Parsed directly in JS |
+| Format     | Notes                                     |
+| ---------- | ----------------------------------------- |
+| PDF        | Parsed via PDF.js (on-device)             |
+| EPUB       | Parsed via JSZip; each chapter = one page |
+| HTML       | Parsed directly in JS                     |
+| Markdown   | Parsed directly in JS                     |
+| Plain text | Parsed directly in JS                     |
 
 All parsing is 100% on-device. Your files are never uploaded anywhere.

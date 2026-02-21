@@ -1,3 +1,5 @@
+@image https://raw.githubusercontent.com/jottenlips/speeder-reader/refs/heads/main/social-image.png
+
 <div align="center">
 
 <svg width="96" height="96" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
