@@ -356,6 +356,19 @@ export default function HomeScreen({ navigation }: Props) {
         name="viewport"
         content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
       />
+      {/* https://raw.githubusercontent.com/jottenlips/speeder-reader/refs/heads/main/social-image.png social image */}
+      <meta
+        property="og:title"
+        content="SpeederReader: Speed Reading for Everyone, Read More Books!"
+      />
+      <meta
+        property="og:description"
+        content="Read faster and save time with SpeederReader, the free speed reading app for PDFs, EPUBs, and more. Boost your reading speed and comprehension today!"
+      />
+      <meta
+        property="og:image"
+        content="https://raw.githubusercontent.com/jottenlips/speeder-reader/refs/heads/main/social-image.png"
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"

@@ -1,4 +1,6 @@
+@title SpeederReader — Features
 @image https://raw.githubusercontent.com/jottenlips/speeder-reader/refs/heads/main/social-image.png
+@description Rapid Serial Visual Presentation flashes words one at a time at a fixed position on screen. Your eyes stay still, eliminating the back-and-forth saccades that slow traditional reading. Most people can comfortably reach 2–3× their normal pace within a few sessions.
 
 <div align="center">
 
