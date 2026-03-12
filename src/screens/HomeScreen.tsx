@@ -50,7 +50,7 @@ import type { RootStackParamList } from "../../App";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 type ParseState = "idle" | "loading" | "parsing" | "ready" | "error";
-type InputMode = "file" | "gutenberg";
+type InputMode = "file" | "url" | "gutenberg";
 
 const SERIF = Platform.select({
   ios: "Georgia",
@@ -100,6 +100,12 @@ export default function HomeScreen({ navigation }: Props) {
   const [gutenbergQuery, setGutenbergQuery] = useState("");
   const [gutenbergResults, setGutenbergResults] = useState<GutenbergBook[]>([]);
   const [gutenbergSearching, setGutenbergSearching] = useState(false);
+
+  const [urlText, setUrlText] = useState("");
+
+  // WebView-based scraper fallback (used when direct download gets 403 etc.)
+  const [scrapeUrl, setScrapeUrl] = useState<string | null>(null);
+  const scraperRef = useRef<WebView>(null);
 
   // Refs so the focus listener always reads the latest values without re-registering
   const fileKeyRef = useRef("");
@@ -152,6 +158,40 @@ export default function HomeScreen({ navigation }: Props) {
       else pendingMsg.current = msg;
     },
     [sendToWebView],
+  );
+
+  // JS injected into the scraper WebView once the page loads.
+  // Waits a beat for JS-rendered content, then grabs innerText.
+  const SCRAPE_JS = `
+    (function() {
+      setTimeout(function() {
+        var text = document.body.innerText || '';
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SCRAPED', text: text }));
+      }, 2000);
+    })(); true;
+  `;
+
+  const onScraperMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      try {
+        const msg = JSON.parse(event.nativeEvent.data);
+        if (msg.type !== "SCRAPED") return;
+        const raw: string = msg.text ?? "";
+        setScrapeUrl(null);
+        if (!raw.trim()) {
+          Alert.alert("Error", "Could not extract text from page.");
+          setParseState("error");
+          return;
+        }
+        setFileType("html");
+        const { words: parsed, numPages: np } = parseTextContent(raw, "txt");
+        setWords(parsed);
+        setNumPages(np);
+        setParseState("ready");
+        setInputMode("file");
+      } catch (_) {}
+    },
+    [],
   );
 
   // Keep refs current so the focus listener always has fresh values
@@ -245,6 +285,91 @@ export default function HomeScreen({ navigation }: Props) {
       setGutenbergSearching(false);
     }
   }, [gutenbergQuery]);
+
+  const loadFromUrl = useCallback(async () => {
+    const url = urlText.trim();
+    if (!url) return;
+
+    // Derive a filename from the URL path
+    const urlPath = url.split("?")[0].split("#")[0];
+    const name = decodeURIComponent(urlPath.split("/").pop() || "file");
+    const type = detectFileType(name);
+    const key = makeFileKey(url);
+
+    setFileName(name);
+    setFileType(type);
+    setFileKey(key);
+    setSavedProgress(null);
+    setStartPage(1);
+    setStartPageText("1");
+    setStartWordIndex(0);
+    setParseState("loading");
+    setWords([]);
+    setProgress({ current: 0, total: 0 });
+
+    try {
+      const cacheUri = FileSystem.cacheDirectory + "sr_url_download";
+      const { status } = await FileSystem.downloadAsync(url, cacheUri);
+      if (status !== 200) {
+        // Fallback: load in a real WebView and scrape the rendered DOM
+        setScrapeUrl(url);
+        setParseState("parsing");
+        return;
+      }
+
+      if (type === "txt" || type === "md" || type === "html") {
+        const raw = await FileSystem.readAsStringAsync(cacheUri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        // Sniff for HTML content even if extension didn't match (e.g. extensionless URLs)
+        const effectiveType =
+          type !== "html" && /^\s*<(!doctype|html)\b/i.test(raw)
+            ? "html"
+            : type;
+        if (effectiveType === "html") {
+          setFileType("html");
+        }
+        const { words: parsed, numPages: np } = parseTextContent(
+          raw,
+          effectiveType as "txt" | "md" | "html",
+        );
+        setWords(parsed);
+        setNumPages(np);
+        setParseState("ready");
+        setInputMode("file");
+      } else {
+        // PDF/EPUB: also peek at the content — if it's actually HTML, parse as HTML
+        const rawPeek = await FileSystem.readAsStringAsync(cacheUri, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        if (/^\s*<(!doctype|html)\b/i.test(rawPeek)) {
+          setFileType("html");
+          const { words: parsed, numPages: np } = parseTextContent(
+            rawPeek,
+            "html",
+          );
+          setWords(parsed);
+          setNumPages(np);
+          setParseState("ready");
+          setInputMode("file");
+        } else {
+          const base64 = await FileSystem.readAsStringAsync(cacheUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          const msgType = type === "epub" ? "PARSE_EPUB" : "PARSE_PDF";
+          setParseState("parsing");
+          dispatch({ type: msgType, base64 });
+          // inputMode switches to "file" in the DONE handler
+        }
+      }
+    } catch (err) {
+      Alert.alert(
+        "Download failed",
+        err instanceof Error ? err.message : String(err),
+      );
+      setParseState("error");
+    }
+  }, [urlText, dispatch]);
 
   const loadGutenbergBook = useCallback(
     async (book: GutenbergBook, fmt: GutenbergFormat) => {
@@ -405,6 +530,22 @@ export default function HomeScreen({ navigation }: Props) {
           <TouchableOpacity
             style={[
               styles.modeBtn,
+              inputMode === "url" && styles.modeBtnActive,
+            ]}
+            onPress={() => setInputMode("url")}
+          >
+            <Text
+              style={[
+                styles.modeBtnText,
+                inputMode === "url" && styles.modeBtnActiveText,
+              ]}
+            >
+              {t(lang, "fromUrl")}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.modeBtn,
               inputMode === "gutenberg" && styles.modeBtnActive,
             ]}
             onPress={() => setInputMode("gutenberg")}
@@ -439,6 +580,34 @@ export default function HomeScreen({ navigation }: Props) {
                   : t(lang, "chooseFile")}
             </Text>
           </TouchableOpacity>
+        )}
+
+        {inputMode === "url" && (
+          <View style={styles.urlRow}>
+            <TextInput
+              style={styles.urlInput}
+              value={urlText}
+              onChangeText={setUrlText}
+              placeholder="https://example.com/book.pdf"
+              placeholderTextColor={c.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="go"
+              onSubmitEditing={loadFromUrl}
+              editable={!isBusy}
+            />
+            <TouchableOpacity
+              style={[
+                styles.urlBtn,
+                (isBusy || !urlText.trim()) && styles.dimmed,
+              ]}
+              onPress={loadFromUrl}
+              disabled={isBusy || !urlText.trim()}
+            >
+              <Text style={styles.urlBtnText}>{t(lang, "load")}</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         {inputMode === "gutenberg" && (
@@ -617,6 +786,33 @@ export default function HomeScreen({ navigation }: Props) {
         mixedContentMode="always"
         onError={(e) => console.warn("WebView error", e.nativeEvent)}
       />
+
+      {/* Scraper WebView — shown behind a translucent overlay when direct download fails */}
+      {scrapeUrl && (
+        <View style={styles.scraperOverlay}>
+          <WebView
+            ref={scraperRef}
+            style={StyleSheet.absoluteFill}
+            source={{ uri: scrapeUrl }}
+            onMessage={onScraperMessage}
+            injectedJavaScript={SCRAPE_JS}
+            javaScriptEnabled
+            domStorageEnabled
+            sharedCookiesEnabled
+            onError={() => {
+              setScrapeUrl(null);
+              Alert.alert("Error", "Could not load page.");
+              setParseState("error");
+            }}
+          />
+          <View style={styles.scraperLoaderOverlay}>
+            <ActivityIndicator color={c.accent} size="large" />
+            <Text style={styles.scraperLoaderText}>
+              {t(lang, "fetching")}
+            </Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -890,5 +1086,22 @@ function makeStyles(c: ThemeColors) {
       marginBottom: 4,
     },
     bookMeta: { fontFamily: SERIF, fontSize: 11, color: c.textTertiary },
+
+    scraperOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 10,
+    },
+    scraperLoaderOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: "rgba(0,0,0,0.85)",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 16,
+    },
+    scraperLoaderText: {
+      fontFamily: SERIF,
+      fontSize: 16,
+      color: c.textPrimary,
+    },
   });
 }
