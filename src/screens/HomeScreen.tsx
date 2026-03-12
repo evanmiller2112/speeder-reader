@@ -133,6 +133,7 @@ export default function HomeScreen({ navigation }: Props) {
             setWords(parsed);
             setNumPages(msg.numPages as number);
             setParseState("ready");
+            setInputMode("file");
             break;
           }
           case "ERROR":
@@ -271,6 +272,7 @@ export default function HomeScreen({ navigation }: Props) {
           setWords(parsed);
           setNumPages(np);
           setParseState("ready");
+          setInputMode("file");
         } else {
           const cacheUri = FileSystem.cacheDirectory + "sr_gutenberg";
           const { status } = await FileSystem.downloadAsync(fmt.url, cacheUri);
@@ -389,10 +391,7 @@ export default function HomeScreen({ navigation }: Props) {
               styles.modeBtn,
               inputMode === "file" && styles.modeBtnActive,
             ]}
-            onPress={() => {
-              setInputMode("file");
-              if (!isBusy) pickAndParse();
-            }}
+            onPress={() => setInputMode("file")}
           >
             <Text
               style={[

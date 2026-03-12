@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0d0d1a"
+      "backgroundColor": "#18100A"
     },
     "ios": {
       "supportsTablet": false,
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0d0d1a"
+        "backgroundColor": "#18100A"
       },
       "package": "com.speederreader.app"
     },
