@@ -7,8 +7,8 @@ const OUT = join(__dirname, 'screenshots');
 
 // App Store sizes
 const SIZES = {
-  '6.7': { w: 1290, h: 2796 },  // iPhone 15/16 Pro Max (required)
-  '6.5': { w: 1284, h: 2778 },  // iPhone 14 Plus
+  '6.5': { w: 1284, h: 2778 },  // 6.5" (1284×2778)
+  '6.1': { w: 1242, h: 2688 },  // 6.1" (1242×2688)
 };
 
 const SPIRAL_POINTS =

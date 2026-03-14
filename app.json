@@ -16,7 +16,8 @@
       "bundleIdentifier": "com.speederreader.app",
       "buildNumber": "1",
       "infoPlist": {
-        "NSDocumentPickerUsageDescription": "SpeederReader needs access to your files to open books and documents for speed reading."
+        "NSDocumentPickerUsageDescription": "SpeederReader needs access to your files to open books and documents for speed reading.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -40,6 +41,12 @@
         }
       ],
       "expo-localization"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "03f7ffd1-fac6-43e7-b1fd-a08c5d173ecf"
+      }
+    },
+    "owner": "johnotto"
   }
 }
