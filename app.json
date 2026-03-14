@@ -13,14 +13,19 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.speederreader.app"
+      "bundleIdentifier": "com.speederreader.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSDocumentPickerUsageDescription": "SpeederReader needs access to your files to open books and documents for speed reading."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#18100A"
       },
-      "package": "com.speederreader.app"
+      "package": "com.speederreader.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",

@@ -86,7 +86,7 @@ function makeFaviconSvg(size) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <rect width="${size}" height="${size}" fill="${BG_COLOR}" rx="${size * 0.15}"/>
   <g transform="translate(${pad},${pad}) scale(${scale})">
-    <polyline points="${SPIRAL_POINTS}" stroke="${STROKE_COLOR}" stroke-width="${3.5 / scale * 1.5}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="${SPIRAL_POINTS}" stroke="${STROKE_COLOR}" stroke-width="${3.5 / scale * 0.5}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>`;
 }
@@ -95,7 +95,7 @@ async function generate() {
   const dir = __dirname;
 
   // App icon (1024x1024)
-  const iconSvg = makeSpiralSvg(1024, 3.5);
+  const iconSvg = makeSpiralSvg(1024, 10.5);
   await sharp(Buffer.from(iconSvg)).png().toFile(join(dir, 'icon.png'));
   console.log('icon.png created (1024x1024)');
 
