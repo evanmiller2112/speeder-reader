@@ -10,6 +10,7 @@ import ReaderScreen from './src/screens/ReaderScreen';
 import { WordEntry } from './src/utils/pdfParser';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
+import { FontProvider } from './src/contexts/FontContext';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -19,6 +20,7 @@ export type RootStackParamList = {
     numPages: number;
     startIndex: number;
     fileKey: string;
+    fileName: string;
   };
 };
 
@@ -50,9 +52,11 @@ export default function App() {
   return (
     <LanguageProvider>
       <ThemeProvider>
-        <GestureHandlerRootView style={styles.root}>
-          <AppContent />
-        </GestureHandlerRootView>
+        <FontProvider>
+          <GestureHandlerRootView style={styles.root}>
+            <AppContent />
+          </GestureHandlerRootView>
+        </FontProvider>
       </ThemeProvider>
     </LanguageProvider>
   );

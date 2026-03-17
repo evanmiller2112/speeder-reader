@@ -43,6 +43,7 @@ const strings = {
     txtOnlyMsg:
       '"{title}" is only available as plain text \u2014 EPUB and PDF are not offered for this book.\n\nOpen the plain text file in a new tab?',
     featureDocumentation: "Feature documentation",
+    continueReading: "Continue reading",
 
     // ReaderScreen
     tapToResume: "tap to resume",
@@ -101,6 +102,7 @@ const strings = {
     txtOnlyMsg:
       '"{title}" solo est\u00e1 disponible en texto plano \u2014 EPUB y PDF no est\u00e1n disponibles.\n\n\u00bfAbrir el archivo de texto en una nueva pesta\u00f1a?',
     featureDocumentation: "Documentaci\u00f3n de la funci\u00f3n",
+    continueReading: "Continuar leyendo",
 
     // ReaderScreen
     tapToResume: "toca para continuar",

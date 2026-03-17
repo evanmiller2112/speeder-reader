@@ -35,6 +35,11 @@ import {
   clearProgress,
   makeFileKey,
   SavedProgress,
+  loadCurrentBook,
+  clearCurrentBook,
+  SavedBook,
+  loadWpm,
+  saveWpm,
 } from "../utils/progress";
 import {
   GutenbergBook,
@@ -45,6 +50,7 @@ import {
 import { t, formatTimeLeft } from "../utils/i18n";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useFont } from "../contexts/FontContext";
 import { getTheme, ThemeColors } from "../utils/theme";
 import type { RootStackParamList } from "../../App";
 
@@ -52,11 +58,6 @@ type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 type ParseState = "idle" | "loading" | "parsing" | "ready" | "error";
 type InputMode = "file" | "url" | "gutenberg";
 
-const SERIF = Platform.select({
-  ios: "Georgia",
-  android: "serif",
-  default: "Georgia",
-});
 const MAX_WPM = 750;
 
 const FORMAT_LABEL_BASE: Record<FileType, string> = {
@@ -70,8 +71,9 @@ const FORMAT_LABEL_BASE: Record<FileType, string> = {
 export default function HomeScreen({ navigation }: Props) {
   const { lang, toggleLang } = useLanguage();
   const { scheme, toggleTheme } = useTheme();
+  const { serif, font, toggleFont } = useFont();
   const c = getTheme(scheme);
-  const styles = useMemo(() => makeStyles(c), [scheme]);
+  const styles = useMemo(() => makeStyles(c, serif), [scheme, serif]);
 
   const FORMAT_LABEL: Record<FileType, string> = {
     ...FORMAT_LABEL_BASE,
@@ -79,6 +81,8 @@ export default function HomeScreen({ navigation }: Props) {
   };
 
   const [wpm, setWpm] = useState(250);
+  useEffect(() => { loadWpm().then((v) => v && setWpm(v)); }, []);
+
   const [parseState, setParseState] = useState<ParseState>("idle");
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileType, setFileType] = useState<FileType>("pdf");
@@ -102,6 +106,7 @@ export default function HomeScreen({ navigation }: Props) {
   const [gutenbergSearching, setGutenbergSearching] = useState(false);
 
   const [urlText, setUrlText] = useState("");
+  const [savedBook, setSavedBook] = useState<SavedBook | null>(null);
 
   // WebView-based scraper fallback (used when direct download gets 403 etc.)
   const [scrapeUrl, setScrapeUrl] = useState<string | null>(null);
@@ -221,6 +226,35 @@ export default function HomeScreen({ navigation }: Props) {
     });
     return unsubscribe;
   }, [navigation, applyProgress]);
+
+  // Load saved book for "Continue Reading"
+  useEffect(() => {
+    loadCurrentBook().then(setSavedBook);
+  }, []);
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      loadCurrentBook().then(setSavedBook);
+    });
+    return unsubscribe;
+  }, [navigation]);
+
+  const continueReading = useCallback(async () => {
+    if (!savedBook) return;
+    const progress = await loadProgress(savedBook.fileKey);
+    navigation.navigate("Reader", {
+      words: savedBook.words,
+      wpm,
+      numPages: savedBook.numPages,
+      startIndex: progress?.wordIndex ?? 0,
+      fileKey: savedBook.fileKey,
+      fileName: savedBook.fileName,
+    });
+  }, [savedBook, navigation, wpm]);
+
+  const dismissSavedBook = useCallback(() => {
+    clearCurrentBook();
+    setSavedBook(null);
+  }, []);
 
   // ── File upload ───────────────────────────────────────────────────────────
   const pickAndParse = useCallback(async () => {
@@ -426,11 +460,16 @@ export default function HomeScreen({ navigation }: Props) {
       numPages,
       startIndex: startWordIndex,
       fileKey,
+      fileName: fileName ?? "Unknown",
     });
-  }, [navigation, words, wpm, numPages, startWordIndex, fileKey]);
+  }, [navigation, words, wpm, numPages, startWordIndex, fileKey, fileName]);
 
   const adjustWpm = (delta: number) =>
-    setWpm((prev) => Math.min(MAX_WPM, Math.max(50, prev + delta)));
+    setWpm((prev) => {
+      const next = Math.min(MAX_WPM, Math.max(50, prev + delta));
+      saveWpm(next);
+      return next;
+    });
 
   const adjustStartPage = (delta: number) => {
     setStartPage((prev) => {
@@ -470,11 +509,39 @@ export default function HomeScreen({ navigation }: Props) {
             </TouchableOpacity>
             <TouchableOpacity onPress={toggleTheme} style={styles.headerBtn}>
               <Text style={styles.headerBtnText}>
-                {scheme === "dark" ? "☀" : "☾"}
+                {scheme === "dark" ? "Light" : "Dark"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={toggleFont}
+              style={[styles.headerBtn, font === "opendyslexic" && styles.headerBtnActive]}
+            >
+              <Text style={[styles.headerBtnText, font === "opendyslexic" && styles.headerBtnActiveText]}>
+                Dyslexic
               </Text>
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Continue Reading */}
+        {savedBook && parseState !== "ready" && (
+          <View style={styles.continueCard}>
+            <View style={styles.continueInfo}>
+              <Text style={styles.continueLabel}>{t(lang, "continueReading")}</Text>
+              <Text style={styles.continueTitle} numberOfLines={1}>
+                {savedBook.fileName}
+              </Text>
+            </View>
+            <View style={styles.continueBtns}>
+              <TouchableOpacity style={styles.continueBtn} onPress={continueReading}>
+                <Text style={styles.continueBtnText}>▶</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.continueDismiss} onPress={dismissSavedBook}>
+                <Text style={styles.continueDismissText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* WPM */}
         <View style={styles.section}>
@@ -817,7 +884,7 @@ export default function HomeScreen({ navigation }: Props) {
   );
 }
 
-function makeStyles(c: ThemeColors) {
+function makeStyles(c: ThemeColors, SERIF: string = 'Georgia') {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     scroll: { paddingHorizontal: 28, paddingVertical: 40 },
@@ -845,6 +912,53 @@ function makeStyles(c: ThemeColors) {
       color: c.textSecondary,
       letterSpacing: 1,
     },
+    headerBtnActive: {
+      borderColor: c.accent,
+      backgroundColor: "rgba(200,169,81,0.1)",
+    },
+    headerBtnActiveText: {
+      color: c.accent,
+    },
+
+    continueCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: c.savedBg,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: c.accent,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginBottom: 24,
+    },
+    continueInfo: { flex: 1, marginRight: 12 },
+    continueLabel: {
+      fontFamily: SERIF,
+      fontSize: 11,
+      color: c.textSecondary,
+      textTransform: "uppercase",
+      letterSpacing: 1,
+      marginBottom: 3,
+    },
+    continueTitle: {
+      fontFamily: SERIF,
+      fontSize: 15,
+      color: c.textPrimary,
+      fontWeight: "600",
+    },
+    continueBtns: { flexDirection: "row", alignItems: "center", gap: 8 },
+    continueBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: c.accent,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    continueBtnText: { color: "#18100A", fontSize: 16 },
+    continueDismiss: { padding: 6 },
+    continueDismissText: { color: c.textTertiary, fontSize: 14 },
 
     section: { marginBottom: 8 },
     label: {

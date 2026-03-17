@@ -109,7 +109,7 @@ SpeederReader supports both a light and a dark theme, optimized for different re
 | **Light** — warm cream background, dark brown text | Daytime, bright rooms, outdoor reading                     |
 | **Dark** — near-black background, soft cream text  | Night reading, low-light environments, reducing eye strain |
 
-Toggle the theme at any time with the **☾ / ☀** button:
+Toggle the theme at any time with the **Light / Dark** button:
 
 - **Home screen:** top-right corner, next to the language toggle
 - **Reader:** speed controls bar, next to the Flow Mode toggle
@@ -117,6 +117,29 @@ Toggle the theme at any time with the **☾ / ☀** button:
 Your preference is saved locally and persists across sessions. On first launch, SpeederReader matches your device or browser system theme (dark or light).
 
 The gold ORP highlight (`#C8A951`) and accent color remain consistent in both modes for visual continuity.
+
+---
+
+## Continue Reading
+
+When you open a book, SpeederReader saves it locally so you can pick up where you left off — even after closing the app. The home screen shows a **Continue Reading** card with the book title and a play button. Your reading position and WPM setting are preserved between sessions. Dismiss the card with **✕** to clear the saved book.
+
+---
+
+## OpenDyslexic Font
+
+SpeederReader includes [OpenDyslexic](https://opendyslexic.org/), a typeface designed to increase readability for readers with dyslexia. Toggle it with the **Dyslexic** button:
+
+- **Home screen:** top-right corner, next to the theme toggle
+- **Reader:** speed controls bar
+
+When active, all text switches to OpenDyslexic with slightly smaller font sizes optimized for the wider letterforms. Your preference is saved locally and persists across sessions.
+
+---
+
+## Persistent WPM
+
+Your reading speed setting is saved automatically whenever you adjust it — on the home screen or in the reader. When you return to SpeederReader, it remembers your preferred WPM instead of defaulting to 250.
 
 ---
 

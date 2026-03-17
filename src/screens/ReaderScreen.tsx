@@ -22,10 +22,11 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../App";
 import { firstIndexOfPage, WordEntry } from "../utils/pdfParser";
-import { saveProgress, clearProgress } from "../utils/progress";
+import { saveProgress, clearProgress, saveCurrentBook, clearCurrentBook, saveWpm } from "../utils/progress";
 import { t } from "../utils/i18n";
 import { useLanguage } from "../contexts/LanguageContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useFont } from "../contexts/FontContext";
 import { getTheme, ThemeColors } from "../utils/theme";
 
 // WebView is only used on native for the dictionary modal; web uses window.open instead
@@ -33,12 +34,6 @@ const WebView =
   Platform.OS !== "web" ? require("react-native-webview").default : null;
 
 type Props = NativeStackScreenProps<RootStackParamList, "Reader">;
-
-const SERIF = Platform.select({
-  ios: "Georgia",
-  android: "serif",
-  default: "Georgia",
-});
 
 const CONTEXT_LINES = 5;
 const WORDS_PER_LINE_EST = 8; // rough estimate for advance threshold
@@ -49,19 +44,18 @@ function midIndex(word: string): number {
   return Math.ceil(word.length / 2) - 1;
 }
 
-function WordDisplay({ word, c }: { word: string; c: ThemeColors }) {
+function WordDisplay({ word, c, serif, serifBold, isDyslexic }: { word: string; c: ThemeColors; serif: string; serifBold: string; isDyslexic: boolean }) {
   if (!word) return null;
   const mid = midIndex(word);
   const before = word.slice(0, mid);
   const highlight = word.slice(mid, mid + 1);
   const after = word.slice(mid + 1);
+  const sz = isDyslexic ? 28 : 38;
   return (
-    // flex-row: left half right-aligns up to center, highlight sits at center,
-    // right half left-aligns from center — ORP always at screen midpoint
     <View style={wordRowStyle}>
       <View style={wordLeftStyle}>
         <Text
-          style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }}
+          style={{ color: c.readerText, fontFamily: serif, fontSize: sz }}
           allowFontScaling={false}
         >
           {before}
@@ -70,8 +64,8 @@ function WordDisplay({ word, c }: { word: string; c: ThemeColors }) {
       <Text
         style={{
           color: c.accent,
-          fontFamily: SERIF,
-          fontSize: 38,
+          fontFamily: serifBold,
+          fontSize: sz,
           fontWeight: "700",
         }}
         allowFontScaling={false}
@@ -80,7 +74,7 @@ function WordDisplay({ word, c }: { word: string; c: ThemeColors }) {
       </Text>
       <View style={wordRightStyle}>
         <Text
-          style={{ color: c.readerText, fontFamily: SERIF, fontSize: 38 }}
+          style={{ color: c.readerText, fontFamily: serif, fontSize: sz }}
           allowFontScaling={false}
         >
           {after}
@@ -99,124 +93,77 @@ const wordRowStyle: any = {
 const wordLeftStyle: any = { flex: 1, alignItems: "flex-end" };
 const wordRightStyle: any = { flex: 1, alignItems: "flex-start" };
 
+
 function ContextDisplay({
   words,
   windowStart,
   currentIndex,
   c,
-  onLastVisibleIndex,
+  onAdvance,
+  serif,
+  isDyslexic,
 }: {
   words: WordEntry[];
   windowStart: number;
   currentIndex: number;
   c: ThemeColors;
-  onLastVisibleIndex: (idx: number) => void;
+  onAdvance: () => void;
+  serif: string;
+  isDyslexic: boolean;
 }) {
-  // Show words from windowStart; render extra so numberOfLines/overflow clips cleanly
+  const ctxSize = isDyslexic ? 11 : 13;
+  const ctxLine = isDyslexic ? 18 : 20;
+  const containerH = CONTEXT_LINES * ctxLine + 4;
+
+  // Render enough words to fill well past the visible area
   const displayEnd = Math.min(words.length, windowStart + CONTEXT_WINDOW + 40);
   const slice = words.slice(windowStart, displayEnd);
   const hiOffset = currentIndex - windowStart;
+  const advanceRef = useRef(onAdvance);
+  advanceRef.current = onAdvance;
+  const containerHRef = useRef(containerH);
+  containerHRef.current = containerH;
 
-  const containerRef = useRef<any>(null);
-  const measuredWindowRef = useRef<number>(-1);
-
-  // Native: use onTextLayout lines data
-  const handleTextLayout = useCallback(
-    (e: any) => {
-      const lines: Array<{ text: string }> | undefined = e.nativeEvent?.lines;
-      if (!lines || lines.length === 0) return;
-      // Reset when window changes
-      if (measuredWindowRef.current !== windowStart) {
-        measuredWindowRef.current = windowStart;
-      }
-      const combined = lines.map((l) => l.text).join("");
-      const visibleWordCount = combined
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean).length;
-      const lastIdx = Math.min(
-        words.length - 1,
-        windowStart + visibleWordCount - 1,
-      );
-      onLastVisibleIndex(Math.max(windowStart, lastIdx));
-    },
-    [words.length, windowStart, onLastVisibleIndex],
-  );
-
-  // Web: DOM-based measurement — count child spans within the visible container bounds
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const el = containerRef.current;
-    if (!el) return;
-    // Small delay to allow layout to settle
-    const timer = setTimeout(() => {
-      const node =
-        el instanceof HTMLElement ? el : ((el as any)?._nativeTag ?? null);
-      if (!node || !(node instanceof HTMLElement)) return;
-      const containerRect = node.getBoundingClientRect();
-      const containerBottom = containerRect.bottom;
-      const spans = node.querySelectorAll("span");
-      let lastVisible = windowStart;
-      let wordIdx = 0;
-      for (let i = 0; i < spans.length; i++) {
-        const span = spans[i];
-        // Skip wrapper spans that contain children (only count leaf text spans)
-        if (span.children.length > 0) continue;
-        const rect = span.getBoundingClientRect();
-        if (rect.top < containerBottom && rect.height > 0) {
-          lastVisible = windowStart + wordIdx;
-        }
-        wordIdx++;
-      }
-      onLastVisibleIndex(Math.max(windowStart, lastVisible));
-    }, 20);
-    return () => clearTimeout(timer);
-  }, [windowStart, currentIndex, words.length, onLastVisibleIndex]);
-
-  const containerHeight = CONTEXT_LINES * 20 + 2; // lineHeight = 20, +2 for sub-pixel tolerance
+  // When the highlighted word's onLayout reports it's past the container bottom, advance
+  const handleHighlightLayout = useCallback((e: any) => {
+    const { y, height } = e.nativeEvent.layout;
+    if (y + height > containerHRef.current) {
+      advanceRef.current();
+    }
+  }, []);
 
   return (
-    <Text
-      ref={containerRef}
-      style={{
-        fontFamily: SERIF,
-        fontSize: 13,
-        lineHeight: 20,
-        color: c.readerContextWord,
-        textAlign: "left",
-        maxHeight: containerHeight,
-        overflow: "hidden",
-      }}
-      numberOfLines={Platform.OS !== "web" ? CONTEXT_LINES : undefined}
-      ellipsizeMode={Platform.OS !== "web" ? "clip" : undefined}
-      onTextLayout={handleTextLayout}
-    >
-      {slice.map((w, i) => (
-        <Text
-          key={windowStart + i}
-          style={
-            i === hiOffset
-              ? {
-                  color: c.readerContextCurrent,
-                  fontFamily: SERIF,
-                  fontSize: 13,
-                }
-              : { color: c.readerContextWord, fontFamily: SERIF, fontSize: 13 }
-          }
-        >
-          {i > 0 ? " " : ""}
-          {w.word}
-        </Text>
-      ))}
-    </Text>
+    <View style={{ height: containerH, overflow: "hidden" as any }}>
+      <View style={contextFlowStyle}>
+        {slice.map((w, i) => (
+          <Text
+            key={i === hiOffset ? `hl-${currentIndex}` : windowStart + i}
+            onLayout={i === hiOffset ? handleHighlightLayout : undefined}
+            style={
+              i === hiOffset
+                ? { color: c.readerContextCurrent, fontFamily: serif, fontSize: ctxSize, lineHeight: ctxLine }
+                : { color: c.readerContextWord, fontFamily: serif, fontSize: ctxSize, lineHeight: ctxLine }
+            }
+          >
+            {w.word}{" "}
+          </Text>
+        ))}
+      </View>
+    </View>
   );
 }
+
+const contextFlowStyle: any = {
+  flexDirection: "row",
+  flexWrap: "wrap",
+};
 
 export default function ReaderScreen({ route, navigation }: Props) {
   const { lang } = useLanguage();
   const { scheme, toggleTheme } = useTheme();
+  const { serif, serifBold, font, toggleFont, isDyslexic } = useFont();
   const c = getTheme(scheme);
-  const styles = useMemo(() => makeStyles(c), [scheme]);
+  const styles = useMemo(() => makeStyles(c, serif), [scheme, serif]);
 
   const {
     words,
@@ -224,13 +171,17 @@ export default function ReaderScreen({ route, navigation }: Props) {
     numPages,
     startIndex,
     fileKey,
+    fileName,
   } = route.params;
+
+  // Persist the current book so HomeScreen can offer "Continue Reading"
+  useEffect(() => {
+    saveCurrentBook({ words, numPages, fileKey, fileName, wpm: initialWpm });
+  }, []); // only on mount
 
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [windowStart, setWindowStart] = useState(() => Math.max(0, startIndex));
   const windowStartRef = useRef(Math.max(0, startIndex));
-  // Tracks the actual last visible word index measured from onTextLayout
-  const lastVisibleIndexRef = useRef(startIndex + CONTEXT_WINDOW - 1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [wpm, setWpm] = useState(initialWpm);
   const [showJumper, setShowJumper] = useState(false);
@@ -254,29 +205,22 @@ export default function ReaderScreen({ route, navigation }: Props) {
     flowReadingRef.current = flowReading;
   }, [flowReading]);
 
-  // Called by ContextDisplay after each text layout measurement
-  const handleLastVisibleIndex = useCallback((idx: number) => {
-    lastVisibleIndexRef.current = idx;
+  // Called by ContextDisplay when the highlighted word's onLayout reports it's past
+  // the visible container. Advances the window so the current word is near the top.
+  const WINDOW_OVERLAP = 3;
+  const handleAdvance = useCallback(() => {
+    const next = Math.max(0, indexRef.current - WINDOW_OVERLAP);
+    if (next !== windowStartRef.current) {
+      windowStartRef.current = next;
+      setWindowStart(next);
+    }
   }, []);
 
-  // Advance context window only when the highlighted word reaches the last visible word
-  // (measured by onTextLayout), not on a word-count estimate.
-  // Overlap ensures words near the boundary appear in both old and new windows,
-  // preventing skipped words when bold reflow causes slight measurement variance.
-  const WINDOW_OVERLAP = 3;
+  // Handle backward navigation past the window start
   useEffect(() => {
-    const ws = windowStartRef.current;
-    if (currentIndex < ws) {
-      // Stepped backwards past window start — pull window back
+    if (currentIndex < windowStartRef.current) {
       const next = Math.max(0, currentIndex);
       windowStartRef.current = next;
-      lastVisibleIndexRef.current = next + CONTEXT_WINDOW - 1; // reset estimate; layout will correct it
-      setWindowStart(next);
-    } else if (currentIndex > lastVisibleIndexRef.current) {
-      // Highlighted word has passed the last visible word — advance with overlap
-      const next = Math.max(0, currentIndex - WINDOW_OVERLAP);
-      windowStartRef.current = next;
-      lastVisibleIndexRef.current = next + CONTEXT_WINDOW - 1; // reset estimate; layout will correct it
       setWindowStart(next);
     }
   }, [currentIndex]);
@@ -330,10 +274,13 @@ export default function ReaderScreen({ route, navigation }: Props) {
     }
   }, [currentPage, fileKey, currentIndex]);
 
-  // Clear saved progress when finished
+  // Clear saved progress and book when finished
   const isFinished = currentIndex >= words.length;
   useEffect(() => {
-    if (isFinished) clearProgress(fileKey);
+    if (isFinished) {
+      clearProgress(fileKey);
+      clearCurrentBook();
+    }
   }, [isFinished, fileKey]);
 
   const handleTap = useCallback(() => {
@@ -380,7 +327,7 @@ export default function ReaderScreen({ route, navigation }: Props) {
 
   const stepWindow = useCallback(
     (direction: 1 | -1) => {
-      const jump = Math.max(1, lastVisibleIndexRef.current - windowStartRef.current);
+      const jump = CONTEXT_WINDOW - WINDOW_OVERLAP;
       const next = Math.min(
         words.length - 1,
         Math.max(0, indexRef.current + direction * jump),
@@ -392,7 +339,11 @@ export default function ReaderScreen({ route, navigation }: Props) {
   );
 
   const adjustWpm = (delta: number) =>
-    setWpm((prev) => Math.min(750, Math.max(50, prev + delta)));
+    setWpm((prev) => {
+      const next = Math.min(750, Math.max(50, prev + delta));
+      saveWpm(next);
+      return next;
+    });
 
   const jumpToPage = useCallback(() => {
     const page = parseInt(pageInput, 10);
@@ -484,14 +435,16 @@ export default function ReaderScreen({ route, navigation }: Props) {
           windowStart={windowStart}
           currentIndex={currentIndex}
           c={c}
-          onLastVisibleIndex={handleLastVisibleIndex}
+          onAdvance={handleAdvance}
+          serif={serif}
+          isDyslexic={isDyslexic}
         />
       </View>
 
       {/* Reading area */}
       <TouchableWithoutFeedback onPress={handleTap}>
         <View style={styles.wordArea}>
-          <WordDisplay word={currentWord?.word ?? ""} c={c} />
+          <WordDisplay word={currentWord?.word ?? ""} c={c} serif={serif} serifBold={serifBold} isDyslexic={isDyslexic} />
 
           {/* Navigation arrows — absolutely positioned when paused */}
           {!isPlaying && (
@@ -605,7 +558,15 @@ export default function ReaderScreen({ route, navigation }: Props) {
           </TouchableOpacity>
           <TouchableOpacity style={styles.themeBtn} onPress={toggleTheme}>
             <Text style={styles.themeBtnText}>
-              {scheme === "dark" ? "☀" : "☾"}
+              {scheme === "dark" ? "Light" : "Dark"}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.flowBtn, font === "opendyslexic" && styles.flowBtnActive]}
+            onPress={toggleFont}
+          >
+            <Text style={[styles.flowBtnText, font === "opendyslexic" && styles.flowBtnTextActive]}>
+              {font === "opendyslexic" ? "OpenDyslexic" : "Dyslexic"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -708,7 +669,7 @@ export default function ReaderScreen({ route, navigation }: Props) {
   );
 }
 
-function makeStyles(c: ThemeColors) {
+function makeStyles(c: ThemeColors, SERIF: string = 'Georgia') {
   return StyleSheet.create({
     container: {
       flex: 1,
