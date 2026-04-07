@@ -21,6 +21,10 @@
 
 [![Open Web App](https://img.shields.io/badge/Open_Web_App-▶_Start_Reading-C8A951?style=for-the-badge)](https://app.speederreader.org/)
 
+[![App Store](https://img.shields.io/badge/App_Store-Download-000000?style=for-the-badge&logo=apple&logoColor=white)](https://apps.apple.com/us/app/speederreader-read-more-books/id6760571089)
+&nbsp;
+[![Google Play](https://img.shields.io/badge/Google_Play-Coming_Soon-000000?style=for-the-badge&logo=google-play&logoColor=white)](https://app.speederreader.org/)
+
 </div>
 
 ---
