@@ -12,15 +12,15 @@ SpeederReader is a free, open-source speed reading app built on the RSVP (Rapid 
 
 ## Download
 
-<a href="https://app.speederreader.org/">
-  <img src="https://img.shields.io/badge/App_Store-Coming_Soon-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download on the App Store" height="48"/>
+<a href="https://apps.apple.com/us/app/speederreader-read-more-books/id6760571089">
+  <img src="https://img.shields.io/badge/App_Store-Download-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download on the App Store" height="48"/>
 </a>
 &nbsp;&nbsp;
 <a href="https://app.speederreader.org/">
   <img src="https://img.shields.io/badge/Google_Play-Coming_Soon-000000?style=for-the-badge&logo=google-play&logoColor=white" alt="Get it on Google Play" height="48"/>
 </a>
 
-_iOS and Android apps coming soon. In the meantime, the full app is available at [https://app.speederreader.org/](https://app.speederreader.org//)._
+_Also available as a [web app](https://app.speederreader.org/)._
 
 ---
 
